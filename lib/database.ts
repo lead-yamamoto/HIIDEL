@@ -120,6 +120,13 @@ class Database {
 
   private async loadStoresFromFile() {
     try {
+      // Vercel環境ではファイル読み込みをスキップ
+      if (process.env.VERCEL) {
+        console.log(`⚠️ Vercel環境のため、ファイル読み込みをスキップします`);
+        console.log(`💾 Current memory stores count: ${this.stores.length}`);
+        return;
+      }
+
       const data = await fs.readFile(STORES_FILE, "utf-8");
       const parsedData = JSON.parse(data);
       this.stores = parsedData.map((store: any) => ({
@@ -132,16 +139,31 @@ class Database {
       console.log(
         "📂 No existing stores file found, starting with empty stores"
       );
-      this.stores = [];
+      // ファイルが見つからない場合は空配列で初期化（既存のメモリデータは保持）
+      if (this.stores.length === 0) {
+        this.stores = [];
+      }
     }
   }
 
   private async saveStoresToFile() {
     try {
+      // Vercel環境では書き込み権限がない場合があるため、エラーハンドリングを強化
+      if (process.env.VERCEL) {
+        console.log(
+          `⚠️ Vercel環境のため、ファイル保存をスキップします (メモリのみ)`
+        );
+        console.log(`💾 Memory stores count: ${this.stores.length}`);
+        return;
+      }
+
       await fs.writeFile(STORES_FILE, JSON.stringify(this.stores, null, 2));
       console.log(`💾 Saved ${this.stores.length} stores to file`);
     } catch (error) {
       console.error("Failed to save stores to file:", error);
+      console.log(
+        `💾 Continuing with memory-only storage. Stores count: ${this.stores.length}`
+      );
     }
   }
 

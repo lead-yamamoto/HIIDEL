@@ -92,10 +92,16 @@ export default function StoresPage() {
   const fetchStores = async () => {
     try {
       console.log("📋 Fetching user stores...");
-      const response = await fetch("/api/stores");
+      const response = await fetch("/api/stores", {
+        cache: "no-store", // キャッシュを無効化
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         console.log("🏪 Stores received:", data);
+        console.log(`📊 Number of stores: ${data.stores?.length || 0}`);
         setStores(data.stores || []);
       } else {
         console.error("Failed to fetch stores:", response.status);
@@ -178,7 +184,10 @@ export default function StoresPage() {
                   transition={{ duration: 0.3 }}
                 >
                   <AddStoreDialog
-                    onStoreAdded={fetchStores}
+                    onStoreAdded={() => {
+                      console.log("🔄 Store added, refreshing store list...");
+                      fetchStores();
+                    }}
                     existingStores={stores}
                   />
                 </motion.div>

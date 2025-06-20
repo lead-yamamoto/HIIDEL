@@ -238,10 +238,13 @@ export default function AddStoreDialog({
         } を正常に追加しました！`
       );
 
-      // 2秒後にダイアログを閉じて親コンポーネントを更新
+      // 即座に親コンポーネントを更新
+      console.log("🔄 Calling onStoreAdded to refresh store list...");
+      onStoreAdded();
+
+      // 2秒後にダイアログを閉じる
       setTimeout(() => {
         setIsOpen(false);
-        onStoreAdded();
         setSuccessMessage("");
       }, 2000);
     } catch (error) {
