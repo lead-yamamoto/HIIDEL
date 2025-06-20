@@ -164,10 +164,23 @@ export default function ReviewsPage() {
       console.log("📡 Response data:", data);
       console.log("📡 Reviews array:", data.reviews);
       console.log("📡 Reviews count:", data.count);
+      console.log("📡 Real reviews count:", data.realReviewsCount);
+      console.log("📡 System messages count:", data.systemMessagesCount);
       console.log("📡 Stores checked:", data.storesChecked);
       console.log("📡 Is real data:", data.isRealData);
       if (data.reviews && data.reviews.length > 0) {
         console.log("📡 First review:", data.reviews[0]);
+        data.reviews.forEach((review: Review, index: number) => {
+          console.log(`📡 Review ${index + 1}:`, {
+            id: review.id,
+            storeName: review.storeName,
+            rating: review.rating,
+            isRealData: review.isRealData,
+            isSystemMessage: review.isSystemMessage,
+            messageType: review.messageType,
+            commentPreview: review.comment?.substring(0, 50) + "...",
+          });
+        });
       } else {
         console.log("❌ No reviews found in response");
       }
@@ -746,29 +759,67 @@ export default function ReviewsPage() {
                                     </p>
 
                                     {/* システムメッセージの詳細 */}
-                                    {review.isSystemMessage &&
-                                      review.messageType ===
-                                        "api_limitation" && (
-                                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                                            💡 レビューアクセスについて
-                                          </h4>
-                                          <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                                            <p>
-                                              • Google Business Profile
-                                              APIは、プライバシー保護のためレビューの詳細内容へのアクセスを制限しています
-                                            </p>
-                                            <p>
-                                              •
-                                              レビューの統計情報や概要は取得できる場合があります
-                                            </p>
-                                            <p>
-                                              • 実際のレビューはGoogle Business
-                                              Profileの管理画面で確認できます
-                                            </p>
+                                    {review.isSystemMessage && (
+                                      <div className="mt-3">
+                                        {review.messageType ===
+                                          "api_access_restricted" && (
+                                          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                                            <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-1">
+                                              🔒 APIアクセス制限
+                                            </h4>
+                                            <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                                              <p>
+                                                Google Business Profile
+                                                APIの制限により、レビューデータに直接アクセスできません。
+                                              </p>
+                                              <p className="font-medium mt-2">
+                                                代替手段：
+                                              </p>
+                                              <ul className="list-disc list-inside space-y-1 ml-2">
+                                                <li>
+                                                  Google My
+                                                  Businessの管理画面でレビューを確認
+                                                </li>
+                                                <li>
+                                                  アンケート機能でお客様の声を収集
+                                                </li>
+                                                <li>
+                                                  QRコードでGoogleレビューへの投稿を促進
+                                                </li>
+                                              </ul>
+                                            </div>
                                           </div>
-                                        </div>
-                                      )}
+                                        )}
+
+                                        {(review.messageType ===
+                                          "api_limitation" ||
+                                          !review.messageType) &&
+                                          review.comment.includes(
+                                            "プライバシー保護"
+                                          ) && (
+                                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                                                💡 レビューアクセスについて
+                                              </h4>
+                                              <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                                                <p>
+                                                  • Google Business Profile
+                                                  APIは、プライバシー保護のためレビューの詳細内容へのアクセスを制限しています
+                                                </p>
+                                                <p>
+                                                  •
+                                                  レビューの統計情報や概要は取得できる場合があります
+                                                </p>
+                                                <p>
+                                                  • 実際のレビューはGoogle
+                                                  Business
+                                                  Profileの管理画面で確認できます
+                                                </p>
+                                              </div>
+                                            </div>
+                                          )}
+                                      </div>
+                                    )}
 
                                     {review.isSystemMessage &&
                                       review.messageType ===
