@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvDb } from "@/lib/database-kv";
+import { db } from "@/lib/database";
 
 async function getAuthenticatedUserId(): Promise<string | null> {
   // セッション管理は簡素化
@@ -23,13 +23,13 @@ export async function GET(
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
-    // Vercel KVデータベースからアンケートを取得（フォールバック付き）
+    // Redisデータベースからアンケートを取得（フォールバック付き）
     let surveys = [];
     try {
-      surveys = await kvDb.getSurveys(userId);
-      console.log(`📊 Found ${surveys.length} surveys in KV database`);
+      surveys = await db.getSurveys(userId);
+      console.log(`📊 Found ${surveys.length} surveys in Redis database`);
     } catch (error) {
-      console.error("KV Database error when fetching surveys:", error);
+      console.error("Redis Database error when fetching surveys:", error);
 
       // フォールバック: 初期データを使用
       surveys = [
@@ -100,7 +100,7 @@ export async function GET(
     // 店舗情報を取得（オプション）
     let store = null;
     try {
-      const stores = await kvDb.getStores(userId);
+      const stores = await db.getStores(userId);
       store = stores.find((s) => s.id === survey.storeId);
       console.log(`🏪 Store info: ${store ? store.displayName : "Not found"}`);
     } catch (error) {
@@ -190,7 +190,7 @@ export async function PUT(
     // 現在のアンケートを取得
     let surveys = [];
     try {
-      surveys = await kvDb.getSurveys(userId);
+      surveys = await db.getSurveys(userId);
     } catch (error) {
       console.error("Failed to get surveys for update:", error);
       return NextResponse.json(
@@ -253,7 +253,7 @@ export async function DELETE(
     // 現在のアンケートを取得して存在確認
     let surveys = [];
     try {
-      surveys = await kvDb.getSurveys(userId);
+      surveys = await db.getSurveys(userId);
     } catch (error) {
       console.error("Failed to get surveys for deletion:", error);
       return NextResponse.json(
