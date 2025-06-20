@@ -1,60 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
-
-// データファイルのパス
-const SURVEYS_DATA_FILE_PATH = path.join(process.cwd(), "data", "surveys.json");
-const RESPONSES_DATA_FILE_PATH = path.join(
-  process.cwd(),
-  "data",
-  "survey-responses.json"
-);
-
-// アンケートデータを読み込み
-async function loadSurveys(): Promise<any[]> {
-  try {
-    const data = await fs.readFile(SURVEYS_DATA_FILE_PATH, "utf-8");
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
-  }
-}
-
-// アンケートデータを保存
-async function saveSurveys(surveys: any[]): Promise<void> {
-  try {
-    await fs.mkdir(path.dirname(SURVEYS_DATA_FILE_PATH), { recursive: true });
-    await fs.writeFile(
-      SURVEYS_DATA_FILE_PATH,
-      JSON.stringify(surveys, null, 2)
-    );
-  } catch (error) {
-    console.error("Failed to save surveys:", error);
-  }
-}
-
-// 回答データを読み込み
-async function loadResponses(): Promise<any[]> {
-  try {
-    const data = await fs.readFile(RESPONSES_DATA_FILE_PATH, "utf-8");
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
-  }
-}
-
-// 回答データを保存
-async function saveResponses(responses: any[]): Promise<void> {
-  try {
-    await fs.mkdir(path.dirname(RESPONSES_DATA_FILE_PATH), { recursive: true });
-    await fs.writeFile(
-      RESPONSES_DATA_FILE_PATH,
-      JSON.stringify(responses, null, 2)
-    );
-  } catch (error) {
-    console.error("Failed to save responses:", error);
-  }
-}
+import { db } from "@/lib/database";
 
 // POST: アンケート回答を送信
 export async function POST(
@@ -66,17 +11,22 @@ export async function POST(
     const surveyId = id;
     const { answers, respondentInfo } = await request.json();
 
-    // アンケートの存在確認（永続化データから）
-    const surveys = await loadSurveys();
-    const surveyIndex = surveys.findIndex((s: any) => s.id === surveyId);
-    if (surveyIndex === -1) {
+    console.log(`📝 Submitting survey response for survey: ${surveyId}`, {
+      answers,
+      respondentInfo,
+    });
+
+    // アンケートの存在確認
+    const survey = await db.getSurvey(surveyId);
+    if (!survey) {
+      console.error(`❌ Survey not found: ${surveyId}`);
       return NextResponse.json(
         { error: "アンケートが見つかりません" },
         { status: 404 }
       );
     }
 
-    const survey = surveys[surveyIndex];
+    console.log(`✅ Survey found:`, survey);
 
     // アンケートがアクティブか確認
     if (!survey.isActive) {
@@ -89,7 +39,7 @@ export async function POST(
     // 回答の検証
     const requiredQuestions = survey.questions.filter((q: any) => q.required);
     for (const question of requiredQuestions) {
-      if (!answers[question.id] || answers[question.id].trim() === "") {
+      if (!answers[question.id] || String(answers[question.id]).trim() === "") {
         return NextResponse.json(
           {
             error: `必須項目「${question.question}」に回答してください`,
@@ -101,35 +51,23 @@ export async function POST(
     }
 
     // 新しい回答を保存
-    const responseId = `response_${Date.now()}_${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
-    const newResponse = {
-      id: responseId,
+    const responseData = {
       surveyId,
       answers,
       respondentInfo: respondentInfo || {},
-      submittedAt: new Date().toISOString(),
       ipAddress: request.headers.get("x-forwarded-for") || "unknown",
       userAgent: request.headers.get("user-agent") || "unknown",
     };
 
-    const responses = await loadResponses();
-    responses.push(newResponse);
-    await saveResponses(responses);
+    console.log(`💾 Saving response data:`, responseData);
 
-    // アンケートの回答数を更新
-    const surveyResponses = responses.filter((r) => r.surveyId === surveyId);
-    surveys[surveyIndex] = {
-      ...survey,
-      responseCount: surveyResponses.length,
-      lastResponseAt: new Date().toISOString(),
-    };
-    await saveSurveys(surveys);
+    const savedResponse = await db.saveSurveyResponse(responseData);
+
+    console.log(`✅ Response saved successfully:`, savedResponse);
 
     return NextResponse.json({
       success: true,
-      responseId,
+      responseId: savedResponse.id,
       message: "アンケートの回答をありがとうございました！",
     });
   } catch (error) {
@@ -150,16 +88,29 @@ export async function GET(
     const { id } = await params;
     const surveyId = id;
 
+    console.log(`📊 Getting responses for survey: ${surveyId}`);
+
+    // アンケートの存在確認
+    const survey = await db.getSurvey(surveyId);
+    if (!survey) {
+      return NextResponse.json(
+        { error: "アンケートが見つかりません" },
+        { status: 404 }
+      );
+    }
+
     // 特定のアンケートに対する回答を取得
-    const responses = await loadResponses();
-    const surveyResponses = responses.filter((r) => r.surveyId === surveyId);
+    const surveyResponses = await db.getSurveyResponses(
+      surveyId,
+      survey.userId
+    );
+
+    console.log(`📊 Found ${surveyResponses.length} responses`);
 
     // 回答の統計情報を生成
-    const surveys = await loadSurveys();
-    const survey = surveys.find((s: any) => s.id === surveyId);
     const statistics: any = {};
 
-    if (survey && surveyResponses.length > 0) {
+    if (surveyResponses.length > 0) {
       survey.questions.forEach((question: any) => {
         const questionResponses = surveyResponses
           .map((r) => r.answers[question.id])
@@ -214,11 +165,11 @@ export async function GET(
 
     // 日付別回答数
     surveyResponses.forEach((response) => {
-      const date = new Date(response.submittedAt).toISOString().split("T")[0];
+      const date = new Date(response.createdAt).toISOString().split("T")[0];
       respondentAnalysis.responsesByDate[date] =
         (respondentAnalysis.responsesByDate[date] || 0) + 1;
 
-      const hour = new Date(response.submittedAt).getHours();
+      const hour = new Date(response.createdAt).getHours();
       respondentAnalysis.responsesByHour[hour] =
         (respondentAnalysis.responsesByHour[hour] || 0) + 1;
     });
@@ -237,7 +188,7 @@ export async function GET(
         id: response.id,
         improvementText: response.answers.improvement,
         averageRating: response.respondentInfo?.averageRating || 0,
-        submittedAt: response.submittedAt,
+        submittedAt: response.createdAt,
       }))
       .sort(
         (a, b) =>
@@ -250,15 +201,13 @@ export async function GET(
       statistics,
       respondentAnalysis,
       improvementFeedbacks,
-      survey: survey
-        ? {
-            id: survey.id,
-            title: survey.title,
-            description: survey.description,
-            createdAt: survey.createdAt,
-            isActive: survey.isActive,
-          }
-        : null,
+      survey: {
+        id: survey.id,
+        title: survey.name,
+        description: `店舗のサービス向上のためのアンケートです`,
+        createdAt: survey.createdAt,
+        isActive: survey.isActive,
+      },
     });
   } catch (error) {
     console.error("アンケート回答取得エラー:", error);

@@ -87,8 +87,10 @@ interface SurveyQuestion {
 interface SurveyResponse {
   id: string;
   surveyId: string;
-  storeId: string;
-  responses: Record<string, any>;
+  answers: Record<string, any>;
+  respondentInfo?: Record<string, any>;
+  ipAddress?: string;
+  userAgent?: string;
   createdAt: Date;
 }
 
@@ -516,6 +518,45 @@ class Database {
     }
 
     console.log(`✅ Survey response created: ${response.id}`);
+    return response;
+  }
+
+  async getSurvey(surveyId: string): Promise<Survey | null> {
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
+
+    const survey = this.surveys.find((s) => s.id === surveyId);
+    console.log(`🔍 Looking for survey: ${surveyId}, found:`, survey);
+    return survey || null;
+  }
+
+  async saveSurveyResponse(
+    responseData: Omit<SurveyResponse, "id" | "createdAt">
+  ): Promise<SurveyResponse> {
+    console.log(`💾 Saving survey response:`, responseData);
+
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
+
+    const response: SurveyResponse = {
+      ...responseData,
+      id: `response_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date(),
+    };
+
+    this.surveyResponses.push(response);
+    console.log(`✅ Survey response saved: ${response.id}`);
+
+    // アンケートの回答数を更新
+    const survey = this.surveys.find((s) => s.id === responseData.surveyId);
+    if (survey) {
+      survey.responses++;
+      console.log(`📊 Updated survey response count: ${survey.responses}`);
+    }
+
+    // ファイルに保存
+    await this.saveSurveysToFile();
+
     return response;
   }
 
