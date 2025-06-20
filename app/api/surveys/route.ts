@@ -39,7 +39,7 @@ async function loadSurveys(): Promise<any[]> {
           },
         ],
         responses: [],
-        shareUrl: "http://localhost:3000/s/1",
+        shareUrl: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/s/1`,
       },
     ];
     await saveSurveys(initialData);
@@ -143,7 +143,9 @@ export async function POST(request: NextRequest) {
       .substr(2, 9)}`;
 
     // アンケートURL生成
-    const shareUrl = `http://localhost:3000/s/${newId}`;
+    const shareUrl = `${
+      process.env.NEXTAUTH_URL || "http://localhost:3000"
+    }/s/${newId}`;
 
     const newSurvey = {
       id: newId,

@@ -150,7 +150,7 @@ function SurveyBuilderContent() {
         setSurveyDescription(survey.description);
         setQuestions(survey.questions);
         setSelectedStoreId(survey.storeId || "");
-        setSurveyUrl(`http://localhost:3000/s/${surveyId}`);
+        setSurveyUrl(`${window.location.origin}/s/${surveyId}`);
       } else {
         setSaveMessage("編集するアンケートが見つかりませんでした");
       }

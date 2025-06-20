@@ -162,7 +162,7 @@ export default function QRCodesPage() {
           storeId = "survey"; // アンケート専用のストアID
         }
       } else {
-        url = `http://localhost:3000/${selectedType}/${selectedStore}`;
+        url = `${window.location.origin}/${selectedType}/${selectedStore}`;
         storeId = selectedStore;
       }
 
@@ -206,7 +206,7 @@ export default function QRCodesPage() {
     setError("");
 
     try {
-      const url = `http://localhost:3000/${selectedType}/${selectedStore}`;
+      const url = `${window.location.origin}/${selectedType}/${selectedStore}`;
       setGeneratedUrl(url);
       setShowQRCode(true);
     } catch (error) {

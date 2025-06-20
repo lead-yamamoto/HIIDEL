@@ -241,7 +241,7 @@ export default function SurveyResultsPage({
                 </Button>
                 <Button asChild>
                   <a
-                    href={`http://localhost:3000/s/${resolvedParams.id}`}
+                    href={`${window.location.origin}/s/${resolvedParams.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -601,7 +601,7 @@ export default function SurveyResultsPage({
                   </p>
                   <Button asChild>
                     <a
-                      href={`http://localhost:3000/s/${resolvedParams.id}`}
+                      href={`${window.location.origin}/s/${resolvedParams.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >

@@ -136,7 +136,10 @@ export default function GoogleBusinessConnectPage() {
       process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
       "457464044586-fqcr51tnsb2s54i3ir62975hf07e742k.apps.googleusercontent.com";
     const redirectUri = encodeURIComponent(
-      "http://localhost:3000/api/google/callback"
+      process.env.NEXT_PUBLIC_REDIRECT_URI ||
+        (typeof window !== "undefined"
+          ? `${window.location.origin}/api/google/callback`
+          : "http://localhost:3000/api/google/callback")
     );
     const scope = encodeURIComponent(
       [
