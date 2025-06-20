@@ -4,6 +4,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { cache } from "./cache";
+import Redis from "ioredis";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORES_FILE = path.join(DATA_DIR, "stores.json");
@@ -104,39 +105,66 @@ interface SurveyResponse {
   createdAt: Date;
 }
 
-// Vercel KV REST API クライアント
-class VercelKVClient {
-  private baseUrl: string;
-  private token: string;
+// Redis クライアント
+class RedisClient {
+  private redis: Redis | null = null;
+  private isConnecting = false;
 
   constructor() {
-    this.baseUrl = process.env.KV_REST_API_URL || "";
-    this.token = process.env.KV_REST_API_TOKEN || "";
+    this.connect();
+  }
+
+  private async connect() {
+    if (this.isConnecting || this.redis) return;
+
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      console.log("⚠️ REDIS_URL not found, Redis will not be available");
+      return;
+    }
+
+    try {
+      this.isConnecting = true;
+      console.log("🔄 Connecting to Redis...");
+
+      this.redis = new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+      });
+
+      // 接続テスト
+      await this.redis.ping();
+      console.log("✅ Redis connected successfully");
+
+      this.redis.on("error", (error) => {
+        console.error("❌ Redis connection error:", error);
+        this.redis = null;
+      });
+
+      this.redis.on("close", () => {
+        console.log("🔌 Redis connection closed");
+        this.redis = null;
+      });
+    } catch (error) {
+      console.error("❌ Failed to connect to Redis:", error);
+      this.redis = null;
+    } finally {
+      this.isConnecting = false;
+    }
   }
 
   isAvailable(): boolean {
-    return !!(this.baseUrl && this.token);
+    return !!this.redis;
   }
 
   async get(key: string): Promise<any> {
     if (!this.isAvailable()) return null;
 
     try {
-      const response = await fetch(
-        `${this.baseUrl}/get/${encodeURIComponent(key)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-          },
-        }
-      );
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-      return data.result;
+      const value = await this.redis!.get(key);
+      return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error(`KV GET error for ${key}:`, error);
+      console.error(`Redis GET error for ${key}:`, error);
       return null;
     }
   }
@@ -145,21 +173,10 @@ class VercelKVClient {
     if (!this.isAvailable()) return false;
 
     try {
-      const response = await fetch(
-        `${this.baseUrl}/set/${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(value),
-        }
-      );
-
-      return response.ok;
+      await this.redis!.set(key, JSON.stringify(value));
+      return true;
     } catch (error) {
-      console.error(`KV SET error for ${key}:`, error);
+      console.error(`Redis SET error for ${key}:`, error);
       return false;
     }
   }
@@ -168,19 +185,10 @@ class VercelKVClient {
     if (!this.isAvailable()) return false;
 
     try {
-      const response = await fetch(
-        `${this.baseUrl}/del/${encodeURIComponent(key)}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-          },
-        }
-      );
-
-      return response.ok;
+      await this.redis!.del(key);
+      return true;
     } catch (error) {
-      console.error(`KV DEL error for ${key}:`, error);
+      console.error(`Redis DEL error for ${key}:`, error);
       return false;
     }
   }
@@ -198,7 +206,7 @@ const KEYS = {
 };
 
 class Database {
-  private kv: VercelKVClient;
+  private redis: RedisClient;
   private initialized = false;
 
   private defaultUsers: User[] = [
@@ -214,7 +222,7 @@ class Database {
   ];
 
   constructor() {
-    this.kv = new VercelKVClient();
+    this.redis = new RedisClient();
   }
 
   // 初期化チェック
@@ -223,24 +231,24 @@ class Database {
 
     console.log("🔄 Initializing database...");
 
-    if (!this.kv.isAvailable()) {
-      console.log("⚠️ Vercel KV not available, initializing global storage");
+    if (!this.redis.isAvailable()) {
+      console.log("⚠️ Redis not available, initializing global storage");
       this.initializeGlobalStorage();
       this.initialized = true;
       return;
     }
 
     try {
-      const isInitialized = await this.kv.get(KEYS.INITIALIZED);
+      const isInitialized = await this.redis.get(KEYS.INITIALIZED);
       if (isInitialized) {
         console.log("✅ Database already initialized");
         this.initialized = true;
         return;
       }
 
-      console.log("🔄 Initializing default data in Vercel KV...");
+      console.log("🔄 Initializing default data in Redis...");
       await this.initializeDefaultData();
-      await this.kv.set(KEYS.INITIALIZED, true);
+      await this.redis.set(KEYS.INITIALIZED, true);
       console.log("✅ Database initialization complete");
       this.initialized = true;
     } catch (error) {
@@ -342,7 +350,7 @@ class Database {
     console.log("✅ Global storage initialized");
   }
 
-  // デフォルトデータの初期化（Vercel KV用）
+  // デフォルトデータの初期化（Redis用）
   private async initializeDefaultData(): Promise<void> {
     const defaultStores = [
       {
@@ -420,20 +428,20 @@ class Database {
       },
     ];
 
-    // Vercel KVに保存
+    // Redisに保存
     await Promise.all([
-      this.kv.set(KEYS.STORES, defaultStores),
-      this.kv.set(KEYS.SURVEYS, defaultSurveys),
-      this.kv.set(KEYS.REVIEWS, defaultReviews),
-      this.kv.set(KEYS.QR_CODES, []),
-      this.kv.set(KEYS.SURVEY_RESPONSES, []),
-      this.kv.set(KEYS.USERS, this.defaultUsers),
+      this.redis.set(KEYS.STORES, defaultStores),
+      this.redis.set(KEYS.SURVEYS, defaultSurveys),
+      this.redis.set(KEYS.REVIEWS, defaultReviews),
+      this.redis.set(KEYS.QR_CODES, []),
+      this.redis.set(KEYS.SURVEY_RESPONSES, []),
+      this.redis.set(KEYS.USERS, this.defaultUsers),
     ]);
 
-    console.log("✅ Default data initialized in Vercel KV");
+    console.log("✅ Default data initialized in Redis");
   }
 
-  // データの取得（KV優先、フォールバック付き）
+  // データの取得（Redis優先、フォールバック付き）
   private async getData<T>(
     key: string,
     globalKey: keyof typeof global,
@@ -441,10 +449,10 @@ class Database {
   ): Promise<T[]> {
     await this.ensureInitialized();
 
-    // Vercel KVから取得を試行
-    if (this.kv.isAvailable()) {
+    // Redisから取得を試行
+    if (this.redis.isAvailable()) {
       try {
-        const data = await this.kv.get(key);
+        const data = await this.redis.get(key);
         if (data && Array.isArray(data)) {
           // 日付オブジェクトの復元
           const restoredData = data.map((item: any) => ({
@@ -453,12 +461,12 @@ class Database {
             updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
           }));
           console.log(
-            `📊 Retrieved ${restoredData.length} items from KV: ${key}`
+            `📊 Retrieved ${restoredData.length} items from Redis: ${key}`
           );
           return restoredData;
         }
       } catch (error) {
-        console.error(`❌ KV get error for ${key}:`, error);
+        console.error(`❌ Redis get error for ${key}:`, error);
       }
     }
 
@@ -470,7 +478,7 @@ class Database {
     return globalData;
   }
 
-  // データの保存（KV優先、フォールバック付き）
+  // データの保存（Redis優先、フォールバック付き）
   private async setData<T>(
     key: string,
     globalKey: keyof typeof global,
@@ -479,19 +487,19 @@ class Database {
     // グローバルストレージには常に保存（即座にアクセス可能）
     (global as any)[globalKey] = data;
 
-    // Vercel KVにも保存を試行
-    if (this.kv.isAvailable()) {
+    // Redisにも保存を試行
+    if (this.redis.isAvailable()) {
       try {
-        const success = await this.kv.set(key, data);
+        const success = await this.redis.set(key, data);
         if (success) {
-          console.log(`💾 Saved ${data.length} items to KV: ${key}`);
+          console.log(`💾 Saved ${data.length} items to Redis: ${key}`);
         } else {
           console.log(
-            `⚠️ Failed to save to KV: ${key}, using global storage only`
+            `⚠️ Failed to save to Redis: ${key}, using global storage only`
           );
         }
       } catch (error) {
-        console.error(`❌ KV set error for ${key}:`, error);
+        console.error(`❌ Redis set error for ${key}:`, error);
       }
     } else {
       console.log(`💾 Saved ${data.length} items to global storage: ${key}`);
@@ -984,6 +992,12 @@ function getDatabase(): Database {
 
 declare global {
   var __HIIDEL_DB_INSTANCE__: Database | undefined;
+  var __HIIDEL_STORES__: Store[] | undefined;
+  var __HIIDEL_SURVEYS__: Survey[] | undefined;
+  var __HIIDEL_REVIEWS__: Review[] | undefined;
+  var __HIIDEL_QR_CODES__: QRCode[] | undefined;
+  var __HIIDEL_SURVEY_RESPONSES__: SurveyResponse[] | undefined;
+  var __HIIDEL_USERS__: User[] | undefined;
 }
 
 export const db = getDatabase();

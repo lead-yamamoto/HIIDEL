@@ -1,13 +1,13 @@
-# Vercel KV（Redis）データベース設定手順
+# Vercel Redis データベース設定手順
 
-## 1. Vercel KV データベースの作成
+## 1. Vercel Redis データベースの作成
 
 ### Vercel ダッシュボードでの設定
 
 1. [Vercel Dashboard](https://vercel.com/dashboard) にアクセス
 2. プロジェクト `hiidel-dashboard` を選択
 3. **Storage** タブをクリック
-4. **Create Database** → **KV** を選択
+4. **Create Database** → **Redis** を選択
 5. データベース名: `hiidel-redis-prod`
 6. **Create** をクリック
 
@@ -15,8 +15,7 @@
 
 データベース作成後、以下の環境変数が自動的にプロジェクトに設定されます：
 
-- `KV_REST_API_URL`
-- `KV_REST_API_TOKEN`
+- `REDIS_URL`
 
 ## 2. 環境変数の確認
 
@@ -25,8 +24,7 @@
 1. プロジェクト → **Settings** → **Environment Variables**
 2. 以下の変数が設定されていることを確認：
    ```
-   KV_REST_API_URL=https://******.kv.vercel-storage.com
-   KV_REST_API_TOKEN=*******************
+   REDIS_URL=redis://default:AXAx3316Q7NYWwMHXbrkLTjj9Bfhmt63@redis-11682.c17.us-east-1-4.ec2.redns.redis-cloud.com:11682
    ```
 
 ### ローカル開発環境の設定
@@ -34,9 +32,8 @@
 `.env.local` ファイルを作成（既存の場合は追加）：
 
 ```bash
-# Vercel KV設定
-KV_REST_API_URL=https://******.kv.vercel-storage.com
-KV_REST_API_TOKEN=*******************
+# Redis設定
+REDIS_URL=redis://default:AXAx3316Q7NYWwMHXbrkLTjj9Bfhmt63@redis-11682.c17.us-east-1-4.ec2.redns.redis-cloud.com:11682
 ```
 
 ## 3. デプロイ
@@ -45,7 +42,7 @@ KV_REST_API_TOKEN=*******************
 
 1. コードを GitHub にプッシュ
 2. Vercel が自動的にデプロイを開始
-3. デプロイ完了後、KV データベースが使用可能
+3. デプロイ完了後、Redis データベースが使用可能
 
 ### 手動デプロイ
 
@@ -61,8 +58,9 @@ npx vercel --prod
 本番環境にアクセスすると、以下のログが表示されます：
 
 ```
-🔄 Initializing database...
-🔄 Initializing default data in Vercel KV...
+🔄 Connecting to Redis...
+✅ Redis connected successfully
+🔄 Initializing default data in Redis...
 ✅ Database initialization complete
 ```
 
@@ -75,12 +73,13 @@ npx vercel --prod
 
 ## 5. トラブルシューティング
 
-### KV が利用できない場合
+### Redis が利用できない場合
 
 - グローバルストレージにフォールバック
 - ログに以下が表示：
   ```
-  ⚠️ Vercel KV not available, initializing global storage
+  ⚠️ REDIS_URL not found, Redis will not be available
+  ⚠️ Redis not available, initializing global storage
   ```
 
 ### 環境変数の問題
@@ -88,10 +87,14 @@ npx vercel --prod
 1. Vercel ダッシュボードで環境変数を再確認
 2. 必要に応じて再デプロイ
 
-### データが消える場合
+### 接続エラーの場合
 
-- KV が正常に動作していない可能性
-- ログを確認して KV 接続状況をチェック
+- ログに以下が表示：
+  ```
+  ❌ Failed to connect to Redis: [error details]
+  ```
+- Redis URL が正しいことを確認
+- ネットワーク接続を確認
 
 ## 6. データベース構造
 
@@ -116,27 +119,60 @@ hiidel:initialized     - 初期化フラグ
 
 ### キャッシュ戦略
 
-- グローバルストレージと KV の二重保存
-- 読み込み：KV 優先、フォールバックでグローバル
+- グローバルストレージと Redis の二重保存
+- 読み込み：Redis 優先、フォールバックでグローバル
 - 書き込み：両方に同時保存
 
 ### 制限事項
 
-- Vercel KV：1MB/キー、10,000 リクエスト/月（Hobby Plan）
-- 大量データの場合は Pro Plan へのアップグレードを推奨
+- Redis Cloud：30MB ストレージ、30 接続（無料プラン）
+- 大量データの場合は有料プランへのアップグレードを推奨
 
 ## 8. 監視とログ
 
 ### 成功ログ
 
 ```
-💾 Saved X items to KV: hiidel:stores
-📊 Retrieved X items from KV: hiidel:surveys
+💾 Saved X items to Redis: hiidel:stores
+📊 Retrieved X items from Redis: hiidel:surveys
+✅ Redis connected successfully
 ```
 
 ### エラーログ
 
 ```
-❌ KV set error for hiidel:stores: [error details]
-⚠️ Failed to save to KV: hiidel:surveys, using global storage only
+❌ Redis SET error for hiidel:stores: [error details]
+❌ Redis connection error: [error details]
+⚠️ Failed to save to Redis: hiidel:surveys, using global storage only
 ```
+
+## 9. Redis Cloud について
+
+- **プロバイダー**: Redis Cloud (by Redis Inc.)
+- **場所**: Vercel Storage 経由で提供
+- **特徴**:
+  - 完全マネージド
+  - 高可用性
+  - 自動バックアップ
+  - SSL/TLS 暗号化
+
+## 10. 本番環境での確認
+
+デプロイ後、以下を確認してください：
+
+1. **Redis 接続確認**：
+
+   ```
+   🔄 Connecting to Redis...
+   ✅ Redis connected successfully
+   ```
+
+2. **データ永続化テスト**：
+
+   - 店舗を作成
+   - ページを再読み込み
+   - データが保持されていることを確認
+
+3. **フォールバック動作**：
+   - Redis 接続失敗時にグローバルストレージが使用される
+   - エラーログが適切に出力される

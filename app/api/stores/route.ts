@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvDb } from "@/lib/database-kv";
+import { db } from "@/lib/database";
 
 // 仮のデータストア（実際の実装ではデータベースを使用）
 interface Store {
@@ -146,35 +146,15 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔍 Getting stores for user: ${userId}`);
 
-    // Vercel KVデータベースから店舗を取得
-    let stores = [];
+    // 統合データベースから店舗を取得
+    let stores: any[] = [];
     try {
-      stores = await kvDb.getStores(userId);
-      console.log(`📊 Found ${stores.length} stores from KV database`);
+      stores = await db.getStores(userId);
+      console.log(`📊 Found ${stores.length} stores from database`);
     } catch (error) {
-      console.error("KV Database error, using fallback:", error);
-      // フォールバック: 初期データを返す
-      stores = [
-        {
-          id: "demo-store-1",
-          userId: "1",
-          googleLocationId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
-          displayName: "レンタルスタジオ Dancers四条烏丸店",
-          address: "京都府京都市下京区芦刈山町136 HOSEIビル 4階 401号室",
-          phone: "075-123-4567",
-          website: "https://dancers-studio.com",
-          category: "レンタルスタジオ",
-          isTestStore: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          googleReviewUrl:
-            "https://search.google.com/local/writereview?placeid=ChIJiXXOObgJAWAR6RUFpc_1Esw",
-          placeId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
-          rating: 4.5,
-          reviewCount: 25,
-          isActive: true,
-        },
-      ];
+      console.error("Database error:", error);
+      // フォールバック: 空配列を返す
+      stores = [];
       console.log(`📊 Using fallback data: ${stores.length} stores`);
     }
 
@@ -240,19 +220,12 @@ export async function POST(request: NextRequest) {
 
     let newStore;
     try {
-      newStore = await kvDb.createStore(storeData);
-      console.log(`✅ Store created successfully in KV: ${newStore.id}`);
-    } catch (kvError) {
-      console.error("KV Database creation error:", kvError);
-
-      // フォールバック: メモリ上にのみ作成
-      newStore = {
-        ...storeData,
-        id: `store_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      console.log(`⚠️ Created store in memory only: ${newStore.id}`);
+      console.log(`🔄 Creating store in database...`);
+      newStore = await db.createStore(storeData);
+      console.log(`✅ Store created successfully: ${newStore.id}`);
+    } catch (dbError) {
+      console.error("Database creation error:", dbError);
+      throw new Error("データベースに店舗を作成できませんでした");
     }
 
     return NextResponse.json({
@@ -292,9 +265,9 @@ export async function PUT(request: NextRequest) {
     console.log(`✏️ Updating store: ${id}`, updateData);
 
     // 現在の店舗一覧を取得
-    let stores = [];
+    let stores: any[] = [];
     try {
-      stores = await kvDb.getStores(userId);
+      stores = await db.getStores(userId);
     } catch (error) {
       console.error("Failed to get stores for update:", error);
       return NextResponse.json(
@@ -358,40 +331,24 @@ export async function DELETE(request: NextRequest) {
 
     console.log(`🗑️ Deleting store: ${id}`);
 
-    // 現在の店舗一覧を取得して存在確認
-    let stores = [];
+    // 統合データベースから削除
     try {
-      stores = await kvDb.getStores(userId);
-    } catch (error) {
-      console.error("Failed to get stores for deletion:", error);
-      return NextResponse.json(
-        { error: "店舗の削除に失敗しました" },
-        { status: 500 }
-      );
-    }
+      const success = await db.deleteStore(id, userId);
 
-    const existingStore = stores.find((store) => store.id === id);
-
-    if (!existingStore) {
-      return NextResponse.json(
-        { error: "店舗が見つかりません" },
-        { status: 404 }
-      );
-    }
-
-    try {
-      const success = await kvDb.deleteStore(id, userId);
       if (success) {
-        console.log(`✅ Store deleted: ${id}`);
+        console.log(`✅ Store deleted successfully: ${id}`);
         return NextResponse.json({
           message: "店舗が削除されました",
           timestamp: new Date().toISOString(),
         });
       } else {
-        throw new Error("削除に失敗しました");
+        return NextResponse.json(
+          { error: "店舗が見つからないか、削除権限がありません" },
+          { status: 404 }
+        );
       }
-    } catch (kvError) {
-      console.error("KV Database deletion error:", kvError);
+    } catch (error) {
+      console.error("Failed to delete store:", error);
       return NextResponse.json(
         { error: "店舗の削除に失敗しました" },
         { status: 500 }
@@ -408,6 +365,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-
-// KVデータベースインスタンスをエクスポート（他のファイルからアクセス用）
-export { kvDb };
