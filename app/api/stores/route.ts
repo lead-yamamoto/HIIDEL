@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) {
+      console.log("❌ No user ID found");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -151,6 +152,7 @@ export async function GET(request: NextRequest) {
     // URLパラメータから店舗IDを取得
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get("id");
+    console.log(`🔍 Store ID parameter: ${storeId}`);
 
     if (storeId) {
       console.log(`🔍 Fetching single store: ${storeId}`);

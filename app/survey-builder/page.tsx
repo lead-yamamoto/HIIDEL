@@ -56,6 +56,7 @@ interface Question {
 interface Store {
   id: string;
   displayName: string;
+  name?: string;
   googleReviewUrl?: string;
 }
 
@@ -128,13 +129,36 @@ function SurveyBuilderContent() {
   // 店舗リストを取得
   const fetchStores = async () => {
     try {
-      const response = await fetch("/api/stores");
+      console.log("🏪 Fetching stores...");
+      const response = await fetch("/api/stores", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      });
+
+      console.log("🏪 Store API response status:", response.status);
+
       if (response.ok) {
         const data = await response.json();
-        setStores(data.stores || []);
+        console.log("🏪 Store API response data:", data);
+
+        const storeList = data.stores || [];
+        console.log("🏪 Setting stores:", storeList);
+        setStores(storeList);
+      } else {
+        console.error(
+          "🏪 Store API failed:",
+          response.status,
+          response.statusText
+        );
+        const errorText = await response.text();
+        console.error("🏪 Error response:", errorText);
+        setStores([]);
       }
     } catch (error) {
-      console.error("店舗取得エラー:", error);
+      console.error("🏪 店舗取得エラー:", error);
+      setStores([]);
     }
   };
 
@@ -631,13 +655,16 @@ function SurveyBuilderContent() {
                       </Label>
                       <Select
                         value={selectedStoreId}
-                        onValueChange={setSelectedStoreId}
+                        onValueChange={(value) => {
+                          console.log("🏪 Store selected:", value);
+                          setSelectedStoreId(value);
+                        }}
                       >
                         <SelectTrigger id="store">
                           <SelectValue placeholder="店舗を選択してください" />
                         </SelectTrigger>
                         <SelectContent>
-                          {stores.length === 0 ? (
+                          {!stores || stores.length === 0 ? (
                             <SelectItem value="" disabled>
                               店舗が登録されていません
                             </SelectItem>
@@ -646,7 +673,9 @@ function SurveyBuilderContent() {
                               <SelectItem key={store.id} value={store.id}>
                                 <div className="flex items-center gap-2">
                                   <Building2 size={16} />
-                                  {store.displayName}
+                                  {store.displayName ||
+                                    store.name ||
+                                    `店舗 ${store.id}`}
                                 </div>
                               </SelectItem>
                             ))
@@ -656,6 +685,11 @@ function SurveyBuilderContent() {
                       <p className="text-sm text-muted-foreground">
                         平均評価が4.0以上の場合、選択した店舗のGoogleレビューページへ誘導されます
                       </p>
+                      {stores && stores.length > 0 && (
+                        <p className="text-xs text-green-600">
+                          {stores.length}件の店舗が利用可能です
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between">
