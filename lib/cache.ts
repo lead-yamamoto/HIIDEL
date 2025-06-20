@@ -1,111 +1,116 @@
-interface CacheItem<T> {
+// Vercel環境でのデータ永続化のためのキャッシュ機能
+
+interface CacheEntry<T> {
   data: T;
   timestamp: number;
-  expiresAt: number;
+  ttl: number; // Time to live in milliseconds
 }
 
-export class Cache {
-  private static instance: Cache;
-  private cache: Map<string, CacheItem<any>>;
-  private readonly DEFAULT_EXPIRY = 60 * 60 * 1000; // 1時間
+class MemoryCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  private readonly DEFAULT_TTL = 30 * 60 * 1000; // 30分
 
-  private constructor() {
-    this.cache = new Map();
-  }
-
-  public static getInstance(): Cache {
-    if (!Cache.instance) {
-      Cache.instance = new Cache();
-    }
-    return Cache.instance;
-  }
-
-  public set<T>(
-    key: string,
-    data: T,
-    expiryMs: number = this.DEFAULT_EXPIRY
-  ): void {
-    const timestamp = Date.now();
-    const expiresAt = timestamp + expiryMs;
-
-    this.cache.set(key, {
+  set<T>(key: string, data: T, ttl?: number): void {
+    const entry: CacheEntry<T> = {
       data,
-      timestamp,
-      expiresAt,
-    });
-
-    // ローカルストレージにも保存
-    try {
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          data,
-          timestamp,
-          expiresAt,
-        })
-      );
-    } catch (error) {
-      console.error("Failed to save to localStorage:", error);
-    }
+      timestamp: Date.now(),
+      ttl: ttl || this.DEFAULT_TTL,
+    };
+    this.cache.set(key, entry);
+    console.log(`💾 Cache set: ${key} (TTL: ${entry.ttl}ms)`);
   }
 
-  public get<T>(key: string): T | null {
-    // メモリキャッシュを確認
-    const cachedItem = this.cache.get(key);
-    if (cachedItem && Date.now() < cachedItem.expiresAt) {
-      return cachedItem.data as T;
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return null;
     }
 
-    // ローカルストレージを確認
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        const item: CacheItem<T> = JSON.parse(stored);
-        if (Date.now() < item.expiresAt) {
-          // メモリキャッシュに復元
-          this.cache.set(key, item);
-          return item.data;
-        } else {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to read from localStorage:", error);
+    // TTLチェック
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      console.log(`⏰ Cache expired: ${key}`);
+      return null;
     }
 
-    return null;
+    console.log(`✅ Cache hit: ${key}`);
+    return entry.data as T;
   }
 
-  public delete(key: string): void {
-    this.cache.delete(key);
-    try {
-      localStorage.removeItem(key);
-    } catch (error) {
-      console.error("Failed to delete from localStorage:", error);
+  has(key: string): boolean {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return false;
     }
+
+    // TTLチェック
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return false;
+    }
+
+    return true;
   }
 
-  public clear(): void {
+  delete(key: string): boolean {
+    const result = this.cache.delete(key);
+    if (result) {
+      console.log(`🗑️ Cache deleted: ${key}`);
+    }
+    return result;
+  }
+
+  clear(): void {
     this.cache.clear();
-    try {
-      localStorage.clear();
-    } catch (error) {
-      console.error("Failed to clear localStorage:", error);
+    console.log(`🧹 Cache cleared`);
+  }
+
+  // 期限切れのエントリを削除
+  cleanup(): void {
+    const now = Date.now();
+    let deletedCount = 0;
+
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > entry.ttl) {
+        this.cache.delete(key);
+        deletedCount++;
+      }
+    }
+
+    if (deletedCount > 0) {
+      console.log(`🧹 Cache cleanup: ${deletedCount} expired entries removed`);
     }
   }
 
-  public has(key: string): boolean {
-    return this.get(key) !== null;
-  }
-
-  public getExpiry(key: string): number | null {
-    const item = this.cache.get(key);
-    return item ? item.expiresAt : null;
+  // 統計情報
+  getStats() {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys()),
+    };
   }
 }
 
-// 使用例
-export const cache = Cache.getInstance();
+// グローバルキャッシュインスタンス
+declare global {
+  var __HIIDEL_CACHE__: MemoryCache | undefined;
+}
+
+function getCache(): MemoryCache {
+  if (!global.__HIIDEL_CACHE__) {
+    global.__HIIDEL_CACHE__ = new MemoryCache();
+
+    // 定期的なクリーンアップ（5分ごと）
+    if (typeof setInterval !== "undefined") {
+      setInterval(() => {
+        global.__HIIDEL_CACHE__?.cleanup();
+      }, 5 * 60 * 1000);
+    }
+  }
+  return global.__HIIDEL_CACHE__;
+}
+
+export const cache = getCache();
 
 // APIレスポンスのキャッシュ
 export const cacheApiResponse = async <T>(

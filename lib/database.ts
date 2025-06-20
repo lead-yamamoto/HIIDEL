@@ -1,13 +1,23 @@
 // データベース層 - 実際のデータ管理
 // 注意: 本番環境ではPrisma, Supabase, PostgreSQL等を使用してください
 
-import fs from "fs/promises";
+import { promises as fs } from "fs";
 import path from "path";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORES_FILE = path.join(DATA_DIR, "stores.json");
 const SURVEYS_FILE = path.join(DATA_DIR, "surveys.json");
 const SURVEY_RESPONSES_FILE = path.join(DATA_DIR, "survey-responses.json");
+
+// Vercel環境での永続化のためのグローバルストレージ
+declare global {
+  var __HIIDEL_STORES__: Store[] | undefined;
+  var __HIIDEL_SURVEYS__: Survey[] | undefined;
+  var __HIIDEL_REVIEWS__: Review[] | undefined;
+  var __HIIDEL_QR_CODES__: QRCode[] | undefined;
+  var __HIIDEL_SURVEY_RESPONSES__: SurveyResponse[] | undefined;
+  var __HIIDEL_INITIALIZED__: boolean | undefined;
+}
 
 interface User {
   id: string;
@@ -92,42 +102,188 @@ interface SurveyResponse {
   createdAt: Date;
 }
 
-// インメモリデータストア（本番環境では実際のDBに置き換え）
 class Database {
   private users: User[] = [
     {
       id: "1",
       email: "demo@hiidel.com",
-      name: "デモユーザー",
+      name: "Demo User",
       role: "owner",
-      companyName: "デモ株式会社",
-      isGoogleConnected: true, // Google連携済みに変更
-      createdAt: new Date("2024-01-01"),
+      companyName: "HIIDEL株式会社",
+      isGoogleConnected: false,
+      createdAt: new Date(),
     },
   ];
 
-  private stores: Store[] = [];
-  private qrCodes: QRCode[] = [];
-  private reviews: Review[] = [];
-  private surveys: Survey[] = [];
-  private surveyResponses: SurveyResponse[] = [];
+  // グローバルストレージを使用
+  private get stores(): Store[] {
+    return global.__HIIDEL_STORES__ || [];
+  }
 
-  // データの初期化状態を追跡
-  private initialized = false;
+  private set stores(value: Store[]) {
+    global.__HIIDEL_STORES__ = value;
+  }
+
+  private get surveys(): Survey[] {
+    return global.__HIIDEL_SURVEYS__ || [];
+  }
+
+  private set surveys(value: Survey[]) {
+    global.__HIIDEL_SURVEYS__ = value;
+  }
+
+  private get reviews(): Review[] {
+    return global.__HIIDEL_REVIEWS__ || [];
+  }
+
+  private set reviews(value: Review[]) {
+    global.__HIIDEL_REVIEWS__ = value;
+  }
+
+  private get qrCodes(): QRCode[] {
+    return global.__HIIDEL_QR_CODES__ || [];
+  }
+
+  private set qrCodes(value: QRCode[]) {
+    global.__HIIDEL_QR_CODES__ = value;
+  }
+
+  private get surveyResponses(): SurveyResponse[] {
+    return global.__HIIDEL_SURVEY_RESPONSES__ || [];
+  }
+
+  private set surveyResponses(value: SurveyResponse[]) {
+    global.__HIIDEL_SURVEY_RESPONSES__ = value;
+  }
+
+  private get initialized(): boolean {
+    return global.__HIIDEL_INITIALIZED__ || false;
+  }
+
+  private set initialized(value: boolean) {
+    global.__HIIDEL_INITIALIZED__ = value;
+  }
 
   constructor() {
-    this.initializeDataDir();
-    this.loadStoresFromFile();
+    // 初期化は非同期で行う
+    this.initializeDataDir().catch(console.error);
   }
 
   // 初回アクセス時にすべてのデータを読み込む
   private async ensureInitialized() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      console.log("✅ Database already initialized");
+      return;
+    }
 
     console.log("🔄 Initializing database data...");
-    await Promise.all([this.loadStoresFromFile(), this.loadSurveysFromFile()]);
-    this.initialized = true;
-    console.log("✅ Database initialization complete");
+
+    try {
+      await Promise.all([
+        this.loadStoresFromFile(),
+        this.loadSurveysFromFile(),
+        this.loadReviewsFromFile(),
+      ]);
+
+      this.initialized = true;
+      console.log("✅ Database initialization complete");
+      console.log(
+        `📊 Loaded data: ${this.stores.length} stores, ${this.surveys.length} surveys, ${this.reviews.length} reviews`
+      );
+    } catch (error) {
+      console.error("❌ Database initialization failed:", error);
+      // 初期化に失敗した場合でも、デフォルトデータで続行
+      this.initializeDefaultData();
+      this.initialized = true;
+    }
+  }
+
+  private initializeDefaultData() {
+    console.log("🔧 Initializing default data...");
+
+    if (this.stores.length === 0) {
+      this.stores = [
+        {
+          id: "demo-store-1",
+          userId: "1",
+          googleLocationId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
+          displayName: "レンタルスタジオ Dancers四条烏丸店",
+          address: "京都府京都市下京区芦刈山町136 HOSEIビル 4階 401号室",
+          phone: "075-123-4567",
+          website: "https://dancers-studio.com",
+          category: "レンタルスタジオ",
+          isTestStore: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          googleReviewUrl:
+            "https://search.google.com/local/writereview?placeid=ChIJiXXOObgJAWAR6RUFpc_1Esw",
+          placeId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
+          rating: 4.5,
+          reviewCount: 25,
+          isActive: true,
+        },
+      ];
+    }
+
+    if (this.surveys.length === 0) {
+      this.surveys = [
+        {
+          id: "demo-survey-1",
+          storeId: "demo-store-1",
+          userId: "1",
+          name: "カフェ満足度調査",
+          questions: [
+            {
+              id: "q1",
+              type: "rating" as const,
+              question: "サービスの満足度を教えてください",
+              required: true,
+              options: [],
+            },
+            {
+              id: "q2",
+              type: "text" as const,
+              question: "改善点があれば教えてください",
+              required: false,
+              options: [],
+            },
+          ],
+          responses: 0,
+          createdAt: new Date(),
+          isActive: true,
+        },
+      ];
+    }
+
+    if (this.reviews.length === 0) {
+      this.reviews = [
+        {
+          id: "demo-review-1",
+          storeId: "demo-store-1",
+          userId: "1",
+          rating: 5,
+          text: "素晴らしいサービスでした！",
+          authorName: "田中太郎",
+          isTestData: true,
+          createdAt: new Date(),
+          replied: false,
+        },
+        {
+          id: "demo-review-2",
+          storeId: "demo-store-1",
+          userId: "1",
+          rating: 4,
+          text: "スタッフの対応が丁寧でした。",
+          authorName: "佐藤花子",
+          isTestData: true,
+          createdAt: new Date(),
+          replied: true,
+          replyText: "ありがとうございます！",
+        },
+      ];
+    }
+
+    console.log("✅ Default data initialized");
   }
 
   private async initializeDataDir() {
@@ -141,58 +297,7 @@ class Database {
   private async loadStoresFromFile() {
     try {
       if (process.env.VERCEL) {
-        // Vercel環境では、すでにメモリにデータがあるかチェック
-        if (this.stores.length > 0) {
-          console.log(`💾 Using existing memory stores: ${this.stores.length}`);
-          return;
-        }
-
-        // 環境変数からデータを読み込む（開発用）
-        const envData = process.env.STORES_DATA;
-        if (envData) {
-          try {
-            const parsedData = JSON.parse(envData);
-            this.stores = parsedData.map((store: any) => ({
-              ...store,
-              createdAt: new Date(store.createdAt),
-              updatedAt: new Date(store.updatedAt),
-            }));
-            console.log(
-              `📂 Loaded ${this.stores.length} stores from environment`
-            );
-            return;
-          } catch (error) {
-            console.error(
-              "Failed to parse stores data from environment:",
-              error
-            );
-          }
-        }
-
-        // Vercel環境でも初期店舗データを作成
-        console.log(`⚠️ Vercel環境：初期店舗データを作成`);
-        this.stores = [
-          {
-            id: "demo-store-1",
-            userId: "1",
-            googleLocationId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
-            displayName: "レンタルスタジオ Dancers四条烏丸店",
-            address: "京都府京都市下京区芦刈山町136 HOSEIビル 4階 401号室",
-            phone: "075-123-4567",
-            website: "https://dancers-studio.com",
-            category: "レンタルスタジオ",
-            isTestStore: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            googleReviewUrl:
-              "https://search.google.com/local/writereview?placeid=ChIJiXXOObgJAWAR6RUFpc_1Esw",
-            placeId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
-            rating: 4.5,
-            reviewCount: 25,
-            isActive: true,
-          },
-        ];
-        console.log(`✅ 初期店舗データを作成しました: ${this.stores.length}件`);
+        console.log(`⚠️ Vercel環境：グローバルストレージを使用`);
         return;
       }
 
@@ -205,24 +310,16 @@ class Database {
       }));
       console.log(`📂 Loaded ${this.stores.length} stores from file`);
     } catch (error) {
-      console.log(
-        "📂 No existing stores file found, starting with empty stores"
-      );
-      // ファイルが見つからない場合は空配列で初期化（既存のメモリデータは保持）
-      if (this.stores.length === 0) {
-        this.stores = [];
-      }
+      console.log("📂 No existing stores file found, using default data");
     }
   }
 
   private async saveStoresToFile() {
     try {
-      // Vercel環境では書き込み権限がない場合があるため、エラーハンドリングを強化
       if (process.env.VERCEL) {
         console.log(
-          `⚠️ Vercel環境のため、ファイル保存をスキップします (メモリのみ)`
+          `💾 Vercel環境：グローバルストレージに保存 (${this.stores.length}件)`
         );
-        console.log(`💾 Memory stores count: ${this.stores.length}`);
         return;
       }
 
@@ -230,76 +327,13 @@ class Database {
       console.log(`💾 Saved ${this.stores.length} stores to file`);
     } catch (error) {
       console.error("Failed to save stores to file:", error);
-      console.log(
-        `💾 Continuing with memory-only storage. Stores count: ${this.stores.length}`
-      );
     }
   }
 
   private async loadSurveysFromFile() {
     try {
       if (process.env.VERCEL) {
-        // Vercel環境では、すでにメモリにデータがあるかチェック
-        if (this.surveys.length > 0) {
-          console.log(
-            `💾 Using existing memory surveys: ${this.surveys.length}`
-          );
-          return;
-        }
-
-        // 環境変数からデータを読み込む（開発用）
-        const envData = process.env.SURVEYS_DATA;
-        if (envData) {
-          try {
-            const parsedData = JSON.parse(envData);
-            this.surveys = parsedData.map((survey: any) => ({
-              ...survey,
-              createdAt: new Date(survey.createdAt),
-            }));
-            console.log(
-              `📂 Loaded ${this.surveys.length} surveys from environment`
-            );
-            return;
-          } catch (error) {
-            console.error(
-              "Failed to parse surveys data from environment:",
-              error
-            );
-          }
-        }
-
-        // Vercel環境でも初期データを作成
-        console.log(`⚠️ Vercel環境：初期アンケートデータを作成`);
-        this.surveys = [
-          {
-            id: "demo-survey-1",
-            storeId: "demo-store-1",
-            userId: "1",
-            name: "カフェ満足度調査",
-            questions: [
-              {
-                id: "q1",
-                type: "rating" as const,
-                question: "サービスの満足度を教えてください",
-                required: true,
-                options: [],
-              },
-              {
-                id: "q2",
-                type: "text" as const,
-                question: "改善点があれば教えてください",
-                required: false,
-                options: [],
-              },
-            ],
-            responses: 0,
-            createdAt: new Date(),
-            isActive: true,
-          },
-        ];
-        console.log(
-          `✅ 初期アンケートデータを作成しました: ${this.surveys.length}件`
-        );
+        console.log(`⚠️ Vercel環境：グローバルストレージを使用`);
         return;
       }
 
@@ -311,23 +345,16 @@ class Database {
       }));
       console.log(`📂 Loaded ${this.surveys.length} surveys from file`);
     } catch (error) {
-      console.log(
-        "📂 No existing surveys file found, starting with empty surveys"
-      );
-      if (this.surveys.length === 0) {
-        this.surveys = [];
-      }
+      console.log("📂 No existing surveys file found, using default data");
     }
   }
 
   private async saveSurveysToFile() {
     try {
-      // Vercel環境では書き込み権限がない場合があるため、エラーハンドリングを強化
       if (process.env.VERCEL) {
         console.log(
-          `⚠️ Vercel環境のため、アンケートファイル保存をスキップします (メモリのみ)`
+          `💾 Vercel環境：グローバルストレージに保存 (${this.surveys.length}件)`
         );
-        console.log(`💾 Memory surveys count: ${this.surveys.length}`);
         return;
       }
 
@@ -335,9 +362,15 @@ class Database {
       console.log(`💾 Saved ${this.surveys.length} surveys to file`);
     } catch (error) {
       console.error("Failed to save surveys to file:", error);
-      console.log(
-        `💾 Continuing with memory-only storage. Surveys count: ${this.surveys.length}`
-      );
+    }
+  }
+
+  private async loadReviewsFromFile() {
+    try {
+      // レビューは初期データのみ使用
+      console.log(`📂 Using default review data`);
+    } catch (error) {
+      console.log("📂 No existing reviews file found, using default data");
     }
   }
 
@@ -358,16 +391,13 @@ class Database {
 
   // 店舗管理
   async getStores(userId: string): Promise<Store[]> {
-    // データベースの初期化を確実に行う
     await this.ensureInitialized();
 
     console.log(`📊 DB.getStores called - userId: ${userId}`);
     console.log(`📊 Total stores in database: ${this.stores.length}`);
-    console.log(`📊 All stores:`, this.stores);
 
     const userStores = this.stores.filter((store) => store.userId === userId);
     console.log(`📊 Stores for user ${userId}: ${userStores.length}`);
-    console.log(`📊 User stores:`, userStores);
 
     return userStores;
   }
@@ -375,11 +405,9 @@ class Database {
   async createStore(
     storeData: Omit<Store, "id" | "createdAt" | "updatedAt">
   ): Promise<Store> {
-    console.log(`➕ DB.createStore called with data:`, storeData);
-
-    // データベースの初期化を確実に行う
     await this.ensureInitialized();
-    console.log(`📊 Stores before creation: ${this.stores.length}`);
+
+    console.log(`➕ DB.createStore called with data:`, storeData);
 
     const store: Store = {
       ...storeData,
@@ -391,28 +419,23 @@ class Database {
       reviewCount: storeData.reviewCount ?? 0,
     };
 
-    console.log(`✅ New store object created:`, store);
-    this.stores.push(store);
-    console.log(`📊 Stores after creation: ${this.stores.length}`);
-    console.log(`📊 All stores in database:`, this.stores);
+    this.stores = [...this.stores, store];
+    console.log(`✅ New store created: ${store.id}`);
+    console.log(`📊 Total stores after creation: ${this.stores.length}`);
 
-    // ファイルに保存
     await this.saveStoresToFile();
-
     return store;
   }
 
   async deleteStore(storeId: string, userId: string): Promise<boolean> {
-    // ファイルから最新のデータを読み込む
-    await this.loadStoresFromFile();
+    await this.ensureInitialized();
 
-    const index = this.stores.findIndex(
-      (store) => store.id === storeId && store.userId === userId
+    const initialLength = this.stores.length;
+    this.stores = this.stores.filter(
+      (store) => !(store.id === storeId && store.userId === userId)
     );
-    if (index !== -1) {
-      this.stores.splice(index, 1);
 
-      // ファイルに保存
+    if (this.stores.length < initialLength) {
       await this.saveStoresToFile();
 
       // 関連データも削除
@@ -423,6 +446,7 @@ class Database {
       this.surveys = this.surveys.filter(
         (survey) => survey.storeId !== storeId
       );
+
       return true;
     }
     return false;
@@ -430,6 +454,8 @@ class Database {
 
   // QRコード管理
   async getQRCodes(userId: string, storeId?: string): Promise<QRCode[]> {
+    await this.ensureInitialized();
+
     let qrCodes = this.qrCodes.filter((qr) => qr.userId === userId);
     if (storeId) {
       qrCodes = qrCodes.filter((qr) => qr.storeId === storeId);
@@ -440,17 +466,22 @@ class Database {
   async createQRCode(
     qrData: Omit<QRCode, "id" | "scans" | "createdAt">
   ): Promise<QRCode> {
+    await this.ensureInitialized();
+
     const qrCode: QRCode = {
       ...qrData,
       id: `qr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       scans: 0,
       createdAt: new Date(),
     };
-    this.qrCodes.push(qrCode);
+
+    this.qrCodes = [...this.qrCodes, qrCode];
     return qrCode;
   }
 
   async incrementQRScan(qrId: string): Promise<void> {
+    await this.ensureInitialized();
+
     const qrCode = this.qrCodes.find((qr) => qr.id === qrId);
     if (qrCode) {
       qrCode.scans++;
@@ -459,36 +490,38 @@ class Database {
   }
 
   async deleteQRCode(qrId: string, userId: string): Promise<boolean> {
-    const index = this.qrCodes.findIndex(
-      (qr) => qr.id === qrId && qr.userId === userId
+    await this.ensureInitialized();
+
+    const initialLength = this.qrCodes.length;
+    this.qrCodes = this.qrCodes.filter(
+      (qr) => !(qr.id === qrId && qr.userId === userId)
     );
-    if (index !== -1) {
-      this.qrCodes.splice(index, 1);
-      return true;
-    }
-    return false;
+    return this.qrCodes.length < initialLength;
   }
 
   // レビュー管理
   async getReviews(userId: string, storeId?: string): Promise<Review[]> {
+    await this.ensureInitialized();
+
     let reviews = this.reviews.filter((review) => review.userId === userId);
     if (storeId) {
       reviews = reviews.filter((review) => review.storeId === storeId);
     }
-    return reviews.sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-    );
+    return reviews;
   }
 
   async createReview(
     reviewData: Omit<Review, "id" | "createdAt">
   ): Promise<Review> {
+    await this.ensureInitialized();
+
     const review: Review = {
       ...reviewData,
       id: `review_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date(),
     };
-    this.reviews.push(review);
+
+    this.reviews = [...this.reviews, review];
     return review;
   }
 
@@ -497,6 +530,8 @@ class Database {
     replyText: string,
     userId: string
   ): Promise<boolean> {
+    await this.ensureInitialized();
+
     const review = this.reviews.find(
       (r) => r.id === reviewId && r.userId === userId
     );
@@ -510,7 +545,6 @@ class Database {
 
   // アンケート管理
   async getSurveys(userId: string, storeId?: string): Promise<Survey[]> {
-    // データベースの初期化を確実に行う
     await this.ensureInitialized();
 
     let surveys = this.surveys.filter((survey) => survey.userId === userId);
@@ -524,10 +558,9 @@ class Database {
   async createSurvey(
     surveyData: Omit<Survey, "id" | "responses" | "createdAt">
   ): Promise<Survey> {
-    console.log(`➕ Creating survey:`, surveyData);
-
-    // データベースの初期化を確実に行う
     await this.ensureInitialized();
+
+    console.log(`➕ Creating survey:`, surveyData);
 
     const survey: Survey = {
       ...surveyData,
@@ -536,31 +569,29 @@ class Database {
       createdAt: new Date(),
     };
 
-    this.surveys.push(survey);
+    this.surveys = [...this.surveys, survey];
     console.log(
       `✅ Survey created: ${survey.id}, total surveys: ${this.surveys.length}`
     );
 
-    // ファイルに保存
     await this.saveSurveysToFile();
-
     return survey;
   }
 
   async createSurveyResponse(
     responseData: Omit<SurveyResponse, "id" | "createdAt">
   ): Promise<SurveyResponse> {
-    console.log(`➕ Creating survey response:`, responseData);
-
-    // データベースの初期化を確実に行う
     await this.ensureInitialized();
+
+    console.log(`➕ Creating survey response:`, responseData);
 
     const response: SurveyResponse = {
       ...responseData,
       id: `response_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date(),
     };
-    this.surveyResponses.push(response);
+
+    this.surveyResponses = [...this.surveyResponses, response];
 
     // サーベイの回答数を増加
     const survey = this.surveys.find((s) => s.id === responseData.surveyId);
@@ -577,7 +608,6 @@ class Database {
     surveyId: string,
     userId: string
   ): Promise<SurveyResponse[]> {
-    // データベースの初期化を確実に行う
     await this.ensureInitialized();
 
     const responses = this.surveyResponses.filter(
@@ -594,6 +624,8 @@ class Database {
 
   // 分析データ
   async getAnalytics(userId: string, storeId?: string) {
+    await this.ensureInitialized();
+
     const stores = await this.getStores(userId);
     const targetStores = storeId
       ? stores.filter((s) => s.id === storeId)
@@ -648,6 +680,8 @@ class Database {
 
   // テストデータの初期化
   async initializeTestData(userId: string): Promise<void> {
+    await this.ensureInitialized();
+
     const user = await this.getUser("demo@hiidel.com");
     if (!user || user.id !== userId) return;
 
@@ -710,84 +744,21 @@ class Database {
       url: `http://localhost:3000/survey/${testStore.id}`,
     });
 
-    // テストアンケートを作成
-    const testSurvey = await this.createSurvey({
-      storeId: testStore.id,
-      userId,
-      name: "顧客満足度調査",
-      questions: [
-        {
-          id: "q1",
-          type: "rating",
-          question: "総合的な満足度を教えてください",
-          required: true,
-        },
-        {
-          id: "q2",
-          type: "text",
-          question: "改善点があれば教えてください",
-          required: false,
-        },
-      ],
-      isActive: true,
-    });
-
-    // テストアンケート回答を作成（改善点フィードバック用）
-    const improvementFeedbacks = [
-      {
-        rating: 2,
-        improvementText: "部屋が、少し汚かったです😅",
-      },
-      {
-        rating: 3,
-        improvementText: "クーラーから水がかかり漏れてます",
-      },
-      {
-        rating: 3,
-        improvementText:
-          "床に水(空調から？)が溜まっていたのは困りましたが、スタッフの方はとても丁寧に対応していただきました。床のハッチ部分も壊れていて踏むと沈んで危ないので、直していただけると幸いです。",
-      },
-      {
-        rating: 2,
-        improvementText:
-          "部屋は綺麗ですが、階段で4階はキツかったです。不便さ、箱の小ささを考えると料金は高く感じました。",
-      },
-    ];
-
-    for (let i = 0; i < improvementFeedbacks.length; i++) {
-      const feedback = improvementFeedbacks[i];
-      await this.createSurveyResponse({
-        surveyId: testSurvey.id,
-        storeId: testStore.id,
-        responses: {
-          q1: feedback.rating,
-          improvementText: feedback.improvementText,
-        },
-      });
-    }
+    console.log("✅ Test data initialized successfully");
   }
 }
 
-// シングルトンインスタンス
-// グローバルなデータベースインスタンスを作成
-let globalDatabase: Database | undefined;
-
+// シングルトンパターンでデータベースインスタンスを管理
 function getDatabase(): Database {
-  if (!globalDatabase) {
-    console.log("🔄 Creating new database instance");
-    globalDatabase = new Database();
+  if (!global.__HIIDEL_DB_INSTANCE__) {
+    global.__HIIDEL_DB_INSTANCE__ = new Database();
   }
-  return globalDatabase;
+  return global.__HIIDEL_DB_INSTANCE__;
+}
+
+declare global {
+  var __HIIDEL_DB_INSTANCE__: Database | undefined;
 }
 
 export const db = getDatabase();
-
-export type {
-  User,
-  Store,
-  QRCode,
-  Review,
-  Survey,
-  SurveyQuestion,
-  SurveyResponse,
-};
+export type { Store, Survey, Review, QRCode, SurveyResponse, SurveyQuestion };
