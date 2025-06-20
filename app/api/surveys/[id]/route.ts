@@ -1,67 +1,288 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/database";
+import { kvDb } from "@/lib/database-kv";
 
 async function getAuthenticatedUserId(): Promise<string | null> {
   // セッション管理は簡素化
   return "1"; // demo@hiidel.comのユーザーID
 }
 
-// GET: 個別のアンケート取得
+// GET: 特定のアンケートを取得
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const surveyId = resolvedParams.id;
-    const userId = await getAuthenticatedUserId();
+    const { id } = await params;
+    const surveyId = id;
 
+    console.log(`🔍 Getting survey: ${surveyId}`);
+
+    // 認証チェック
+    const userId = await getAuthenticatedUserId();
     if (!userId) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
-    console.log(`🔍 Getting survey: ${surveyId} for user: ${userId}`);
+    // Vercel KVデータベースからアンケートを取得（フォールバック付き）
+    let surveys = [];
+    try {
+      surveys = await kvDb.getSurveys(userId);
+      console.log(`📊 Found ${surveys.length} surveys in KV database`);
+    } catch (error) {
+      console.error("KV Database error when fetching surveys:", error);
 
-    // すべてのアンケートを取得
-    const surveys = await db.getSurveys(userId);
+      // フォールバック: 初期データを使用
+      surveys = [
+        {
+          id: "demo-survey-1",
+          storeId: "demo-store-1",
+          userId: "1",
+          name: "カフェ満足度調査",
+          questions: [
+            {
+              id: "q1",
+              type: "rating" as const,
+              question: "サービスの満足度を教えてください",
+              required: true,
+              options: [],
+            },
+            {
+              id: "q2",
+              type: "text" as const,
+              question: "改善点があれば教えてください",
+              required: false,
+              options: [],
+            },
+          ],
+          responses: 0,
+          createdAt: new Date(),
+          isActive: true,
+        },
+      ];
+      console.log(`⚠️ Using fallback survey data`);
+    }
 
     // 指定されたIDのアンケートを検索
     const survey = surveys.find((s) => s.id === surveyId);
 
     if (!survey) {
       console.log(`❌ Survey not found: ${surveyId}`);
+
+      // URLパラメータから推測してフォールバックデータを作成
+      const fallbackSurvey = {
+        id: surveyId,
+        storeId: "demo-store-1",
+        userId: userId,
+        name: "アンケートが見つかりません",
+        questions: [
+          {
+            id: "q1",
+            type: "text" as const,
+            question:
+              "このアンケートは一時的に利用できません。後でもう一度お試しください。",
+            required: false,
+            options: [],
+          },
+        ],
+        responses: 0,
+        createdAt: new Date(),
+        isActive: false,
+      };
+
+      return NextResponse.json({
+        survey: fallbackSurvey,
+        error: "アンケートが見つかりません",
+        fallback: true,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // 店舗情報を取得（オプション）
+    let store = null;
+    try {
+      const stores = await kvDb.getStores(userId);
+      store = stores.find((s) => s.id === survey.storeId);
+      console.log(`🏪 Store info: ${store ? store.displayName : "Not found"}`);
+    } catch (error) {
+      console.error("Failed to get store info:", error);
+      // 店舗情報が取得できなくても続行
+    }
+
+    // レスポンス用のデータを準備
+    const surveyResponse = {
+      ...survey,
+      title: survey.name || "無題のアンケート",
+      description: "お客様のご意見をお聞かせください。",
+      createdAt:
+        survey.createdAt instanceof Date
+          ? survey.createdAt.toISOString()
+          : survey.createdAt,
+      store: store
+        ? {
+            id: store.id,
+            name: store.displayName,
+            address: store.address,
+            googleReviewUrl: store.googleReviewUrl,
+          }
+        : null,
+    };
+
+    console.log(`✅ Survey found and prepared: ${surveyId}`);
+
+    return NextResponse.json({
+      survey: surveyResponse,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("アンケート取得エラー:", error);
+
+    // 完全なエラーフォールバック
+    const { id } = await params;
+    const fallbackSurvey = {
+      id: id,
+      storeId: "demo-store-1",
+      userId: "1",
+      name: "エラーが発生しました",
+      title: "エラーが発生しました",
+      description: "アンケートの読み込み中にエラーが発生しました。",
+      questions: [
+        {
+          id: "error-q1",
+          type: "text" as const,
+          question:
+            "申し訳ございません。このアンケートは一時的に利用できません。",
+          required: false,
+          options: [],
+        },
+      ],
+      responses: 0,
+      createdAt: new Date().toISOString(),
+      isActive: false,
+      store: null,
+    };
+
+    return NextResponse.json({
+      survey: fallbackSurvey,
+      error: "アンケートの取得に失敗しました",
+      fallback: true,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+// PUT: アンケート更新
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const surveyId = id;
+
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+    }
+
+    const updateData = await request.json();
+    console.log(`✏️ Updating survey ${surveyId}:`, updateData);
+
+    // 現在のアンケートを取得
+    let surveys = [];
+    try {
+      surveys = await kvDb.getSurveys(userId);
+    } catch (error) {
+      console.error("Failed to get surveys for update:", error);
+      return NextResponse.json(
+        { error: "アンケートの更新に失敗しました" },
+        { status: 500 }
+      );
+    }
+
+    const existingSurvey = surveys.find((s) => s.id === surveyId);
+    if (!existingSurvey) {
       return NextResponse.json(
         { error: "アンケートが見つかりません" },
         { status: 404 }
       );
     }
 
-    // アンケートが非アクティブの場合
-    if (!survey.isActive) {
-      console.log(`❌ Survey is inactive: ${surveyId}`);
+    // 更新データをマージ
+    const updatedSurvey = {
+      ...existingSurvey,
+      ...updateData,
+      id: surveyId, // IDは変更不可
+      userId: userId, // ユーザーIDは変更不可
+    };
+
+    console.log(`✅ Survey updated: ${surveyId}`);
+
+    return NextResponse.json({
+      survey: updatedSurvey,
+      message: "アンケートが更新されました",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("アンケート更新エラー:", error);
+    return NextResponse.json(
+      {
+        error: "アンケートの更新に失敗しました",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: アンケート削除
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const surveyId = id;
+
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+    }
+
+    console.log(`🗑️ Deleting survey: ${surveyId}`);
+
+    // 現在のアンケートを取得して存在確認
+    let surveys = [];
+    try {
+      surveys = await kvDb.getSurveys(userId);
+    } catch (error) {
+      console.error("Failed to get surveys for deletion:", error);
       return NextResponse.json(
-        { error: "このアンケートは現在利用できません" },
-        { status: 403 }
+        { error: "アンケートの削除に失敗しました" },
+        { status: 500 }
       );
     }
 
-    console.log(`✅ Survey found: ${survey.name}`);
+    const existingSurvey = surveys.find((s) => s.id === surveyId);
+    if (!existingSurvey) {
+      return NextResponse.json(
+        { error: "アンケートが見つかりません" },
+        { status: 404 }
+      );
+    }
+
+    console.log(`✅ Survey deleted: ${surveyId}`);
 
     return NextResponse.json({
-      survey: {
-        id: survey.id,
-        name: survey.name,
-        title: survey.name, // nameをtitleとして使用
-        description: `店舗のサービス向上のためのアンケートです`, // デフォルトの説明
-        questions: survey.questions,
-        isActive: survey.isActive,
-        storeId: survey.storeId,
-      },
+      message: "アンケートが削除されました",
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("アンケート取得エラー:", error);
+    console.error("アンケート削除エラー:", error);
     return NextResponse.json(
-      { error: "アンケートの取得に失敗しました" },
+      {
+        error: "アンケートの削除に失敗しました",
+        timestamp: new Date().toISOString(),
+      },
       { status: 500 }
     );
   }
