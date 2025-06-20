@@ -89,9 +89,16 @@ export default function SurveyResponsePage({
               console.log(
                 `🔗 Setting Google Review URL: ${store.googleReviewUrl}`
               );
+              console.log(
+                `🔍 Google Review URL type: ${typeof store.googleReviewUrl}`
+              );
+              console.log(
+                `🔍 Google Review URL length: ${store.googleReviewUrl.length}`
+              );
               setGoogleReviewUrl(store.googleReviewUrl);
             } else {
               console.log(`⚠️ No Google Review URL found for store`);
+              console.log(`🔍 Store object:`, store);
             }
 
             if (store?.displayName) {
@@ -280,8 +287,16 @@ export default function SurveyResponsePage({
               console.log(`⚠️ Using fallback Google Review URL`);
             }
 
-            // Googleレビューページへリダイレクト
-            window.location.href = googleReviewUrl;
+            // リダイレクト直前のデバッグ情報
+            console.log(`🚀 About to redirect to: ${googleReviewUrl}`);
+            console.log(`🔍 Current URL: ${window.location.href}`);
+            console.log(`⏰ Redirect timestamp: ${new Date().toISOString()}`);
+
+            // 少し遅延を入れてリダイレクトを確実に実行
+            setTimeout(() => {
+              console.log(`🎯 Executing redirect now...`);
+              window.location.href = googleReviewUrl;
+            }, 100);
           } else {
             const data = await response.json();
             setError(data.error || "回答の送信に失敗しました");
