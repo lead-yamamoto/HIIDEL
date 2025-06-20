@@ -123,26 +123,83 @@ export async function GET(request: NextRequest) {
             const accountName = accountsData.accounts[0].name;
             console.log(`🏢 Using account: ${accountName}`);
 
-            // 新しいGoogle My Business APIエンドポイントを使用
-            const locationName = `${accountName}/locations/${store.googleLocationId}`;
-            const reviewsUrl = `https://mybusiness.googleapis.com/v4/${locationName}/reviews`;
-            console.log(`🔗 Reviews API URL: ${reviewsUrl}`);
+            // Google Business Profile APIの複数のエンドポイントを試行
+            // accountName形式: accounts/123456789
+            // locationId形式: 12345678901234567890
+            const reviewsUrls = [
+              // 従来のMy Business API
+              `https://mybusiness.googleapis.com/v4/${accountName}/locations/${store.googleLocationId}/reviews`,
+              // 別の形式
+              `https://mybusiness.googleapis.com/v4/accounts/${
+                accountName.split("/")[1]
+              }/locations/${store.googleLocationId}/reviews`,
+            ];
 
-            const reviewsResponse = await fetch(reviewsUrl, {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-              },
-            });
+            console.log(`🔗 Account Name: ${accountName}`);
+            console.log(`🔗 Location ID: ${store.googleLocationId}`);
+            console.log(`🔗 Trying multiple API endpoints:`, reviewsUrls);
+
+            let reviewsResponse: Response | null = null;
+            let reviewsUrl = "";
+            let lastError = "";
+
+            // 複数のエンドポイントを順番に試行
+            for (const url of reviewsUrls) {
+              console.log(`🔗 Trying Reviews API URL: ${url}`);
+              reviewsUrl = url;
+
+              try {
+                reviewsResponse = await fetch(reviewsUrl, {
+                  method: "GET",
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                });
+
+                console.log(
+                  `📍 Reviews API response status for ${url}: ${reviewsResponse.status}`
+                );
+
+                if (reviewsResponse.ok) {
+                  console.log(`✅ Success with endpoint: ${url}`);
+                  break; // 成功したらループを抜ける
+                } else {
+                  const errorText = await reviewsResponse.text();
+                  lastError = errorText;
+                  console.log(
+                    `❌ Failed with endpoint: ${url}, status: ${reviewsResponse.status}, error: ${errorText}`
+                  );
+
+                  if (
+                    reviewsResponse.status !== 400 &&
+                    reviewsResponse.status !== 404
+                  ) {
+                    // 400や404以外のエラーの場合は、このレスポンスを使用
+                    break;
+                  }
+                }
+              } catch (error) {
+                console.error(`💥 Network error with endpoint: ${url}`, error);
+                lastError =
+                  error instanceof Error ? error.message : "Network error";
+              }
+            }
+
+            if (!reviewsResponse) {
+              throw new Error(
+                `All API endpoints failed. Last error: ${lastError}`
+              );
+            }
 
             console.log(
-              `📍 Reviews API response status: ${reviewsResponse.status}`
+              `📍 Final Reviews API response status: ${reviewsResponse.status}`
             );
             console.log(
-              `📍 Reviews API response headers:`,
+              `📍 Final Reviews API response headers:`,
               Object.fromEntries(reviewsResponse.headers.entries())
             );
+            console.log(`📍 Final Reviews API URL used: ${reviewsUrl}`);
 
             if (reviewsResponse.ok) {
               const reviewsData = await reviewsResponse.json();
@@ -215,13 +272,23 @@ export async function GET(request: NextRequest) {
                 allReviews.push(noReviewsMessage);
               }
             } else {
-              const errorText = await reviewsResponse.text();
+              // エラーテキストを取得（既に読み込まれている場合は lastError を使用）
+              let errorText = lastError;
+              if (!errorText) {
+                try {
+                  errorText = await reviewsResponse.text();
+                } catch (e) {
+                  errorText = "Failed to read error response";
+                }
+              }
+
               console.error(
                 `❌ Failed to fetch reviews for ${store.displayName}:`,
                 {
                   status: reviewsResponse.status,
                   statusText: reviewsResponse.statusText,
                   errorBody: errorText,
+                  finalUrl: reviewsUrl,
                 }
               );
 
@@ -248,8 +315,17 @@ export async function GET(request: NextRequest) {
                 errorMessage =
                   "Google認証の有効期限が切れています。再度Google Business Profileとの連携を行ってください。";
                 messageType = "auth_expired";
+              } else if (reviewsResponse.status === 400) {
+                console.warn(
+                  `📝 Bad request for reviews API - ${store.displayName}`
+                );
+                console.warn(`📝 Request URL was: ${reviewsUrl}`);
+                console.warn(`📝 Account Name: ${accountName}`);
+                console.warn(`📝 Location ID: ${store.googleLocationId}`);
+                errorMessage = `リクエストの形式に問題があります。店舗ID「${store.googleLocationId}」が正しくない可能性があります。\n\n確認事項：\n• 店舗がGoogle Business Profileで正しく設定されているか\n• Location IDが正しい形式か\n• APIエンドポイントが正しいか\n\nエラー詳細: ${errorText}`;
+                messageType = "bad_request";
               } else {
-                errorMessage = `レビューの取得中にエラーが発生しました（ステータス: ${reviewsResponse.status}）。Google Business Profile APIの一時的な問題の可能性があります。`;
+                errorMessage = `レビューの取得中にエラーが発生しました（ステータス: ${reviewsResponse.status}）。Google Business Profile APIの一時的な問題の可能性があります。\n\nエラー詳細: ${errorText}`;
                 messageType = "api_error";
               }
 
