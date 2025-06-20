@@ -206,8 +206,7 @@ export default function AddStoreDialog({
     try {
       console.log("➕ Adding store:", location.displayName);
 
-      const address =
-        location.storefrontAddress?.addressLines?.join(", ") || "住所未設定";
+      const address = formatAddress(location.storefrontAddress);
 
       const response = await fetch("/api/stores", {
         method: "POST",
@@ -240,13 +239,17 @@ export default function AddStoreDialog({
 
       // 即座に親コンポーネントを更新
       console.log("🔄 Calling onStoreAdded to refresh store list...");
-      onStoreAdded();
+      await onStoreAdded();
+
+      // Google Locationsも再取得して最新状態に
+      console.log("🔄 Refreshing Google locations...");
+      await fetchGoogleLocations();
 
       // 2秒後にダイアログを閉じる
       setTimeout(() => {
         setIsOpen(false);
         setSuccessMessage("");
-      }, 2000);
+      }, 1500);
     } catch (error) {
       console.error("💥 Error adding store:", error);
       setError(
@@ -261,12 +264,39 @@ export default function AddStoreDialog({
     if (!address) return "住所未設定";
 
     const parts = [];
-    if (address.addressLines) parts.push(...address.addressLines);
-    if (address.locality) parts.push(address.locality);
-    if (address.administrativeArea) parts.push(address.administrativeArea);
-    if (address.postalCode) parts.push(address.postalCode);
 
-    return parts.join(", ") || "住所未設定";
+    // 住所行を追加
+    if (address.addressLines && address.addressLines.length > 0) {
+      parts.push(...address.addressLines);
+    }
+
+    // 市区町村を追加
+    if (address.locality) {
+      parts.push(address.locality);
+    }
+
+    // 都道府県を追加
+    if (address.administrativeArea) {
+      parts.push(address.administrativeArea);
+    }
+
+    // 郵便番号を追加
+    if (address.postalCode) {
+      parts.push(address.postalCode);
+    }
+
+    // 国を追加（必要に応じて）
+    if (address.country && address.country !== "JP") {
+      parts.push(address.country);
+    }
+
+    const formattedAddress = parts.join(", ");
+    console.log("📍 Formatted address:", {
+      original: address,
+      formatted: formattedAddress,
+    });
+
+    return formattedAddress || "住所未設定";
   };
 
   return (
@@ -283,9 +313,8 @@ export default function AddStoreDialog({
             連携されたGoogleビジネスプロフィールから店舗を選択して、HIIDELに追加できます。
             {!isLoading && googleLocations.length > 0 && (
               <div className="mt-2 text-sm text-muted-foreground">
-                総店舗数: {googleLocations.length}件 / 追加可能:{" "}
-                {filteredGoogleLocations.length}件 / 追加済み:{" "}
-                {googleLocations.length - filteredGoogleLocations.length}件
+                総店舗数: {totalLocations}件 / 追加可能: {availableStores}件 /
+                追加済み: {addedStores}件
               </div>
             )}
           </DialogDescription>
