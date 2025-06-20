@@ -87,10 +87,8 @@ interface SurveyQuestion {
 interface SurveyResponse {
   id: string;
   surveyId: string;
-  answers: Record<string, any>;
-  respondentInfo?: Record<string, any>;
-  ipAddress?: string;
-  userAgent?: string;
+  storeId: string;
+  responses: Record<string, any>;
   createdAt: Date;
 }
 
@@ -171,7 +169,30 @@ class Database {
           }
         }
 
-        console.log(`⚠️ Vercel環境：新しいメモリストレージを開始`);
+        // Vercel環境でも初期店舗データを作成
+        console.log(`⚠️ Vercel環境：初期店舗データを作成`);
+        this.stores = [
+          {
+            id: "demo-store-1",
+            userId: "1",
+            googleLocationId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
+            displayName: "レンタルスタジオ Dancers四条烏丸店",
+            address: "京都府京都市下京区芦刈山町136 HOSEIビル 4階 401号室",
+            phone: "075-123-4567",
+            website: "https://dancers-studio.com",
+            category: "レンタルスタジオ",
+            isTestStore: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            googleReviewUrl:
+              "https://search.google.com/local/writereview?placeid=ChIJiXXOObgJAWAR6RUFpc_1Esw",
+            placeId: "ChIJiXXOObgJAWAR6RUFpc_1Esw",
+            rating: 4.5,
+            reviewCount: 25,
+            isActive: true,
+          },
+        ];
+        console.log(`✅ 初期店舗データを作成しました: ${this.stores.length}件`);
         return;
       }
 
@@ -247,7 +268,38 @@ class Database {
           }
         }
 
-        console.log(`⚠️ Vercel環境：新しいアンケートメモリストレージを開始`);
+        // Vercel環境でも初期データを作成
+        console.log(`⚠️ Vercel環境：初期アンケートデータを作成`);
+        this.surveys = [
+          {
+            id: "demo-survey-1",
+            storeId: "demo-store-1",
+            userId: "1",
+            name: "カフェ満足度調査",
+            questions: [
+              {
+                id: "q1",
+                type: "rating" as const,
+                question: "サービスの満足度を教えてください",
+                required: true,
+                options: [],
+              },
+              {
+                id: "q2",
+                type: "text" as const,
+                question: "改善点があれば教えてください",
+                required: false,
+                options: [],
+              },
+            ],
+            responses: 0,
+            createdAt: new Date(),
+            isActive: true,
+          },
+        ];
+        console.log(
+          `✅ 初期アンケートデータを作成しました: ${this.surveys.length}件`
+        );
         return;
       }
 
@@ -518,45 +570,6 @@ class Database {
     }
 
     console.log(`✅ Survey response created: ${response.id}`);
-    return response;
-  }
-
-  async getSurvey(surveyId: string): Promise<Survey | null> {
-    // データベースの初期化を確実に行う
-    await this.ensureInitialized();
-
-    const survey = this.surveys.find((s) => s.id === surveyId);
-    console.log(`🔍 Looking for survey: ${surveyId}, found:`, survey);
-    return survey || null;
-  }
-
-  async saveSurveyResponse(
-    responseData: Omit<SurveyResponse, "id" | "createdAt">
-  ): Promise<SurveyResponse> {
-    console.log(`💾 Saving survey response:`, responseData);
-
-    // データベースの初期化を確実に行う
-    await this.ensureInitialized();
-
-    const response: SurveyResponse = {
-      ...responseData,
-      id: `response_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date(),
-    };
-
-    this.surveyResponses.push(response);
-    console.log(`✅ Survey response saved: ${response.id}`);
-
-    // アンケートの回答数を更新
-    const survey = this.surveys.find((s) => s.id === responseData.surveyId);
-    if (survey) {
-      survey.responses++;
-      console.log(`📊 Updated survey response count: ${survey.responses}`);
-    }
-
-    // ファイルに保存
-    await this.saveSurveysToFile();
-
     return response;
   }
 
