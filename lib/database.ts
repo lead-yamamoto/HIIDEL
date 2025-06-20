@@ -6,6 +6,8 @@ import path from "path";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORES_FILE = path.join(DATA_DIR, "stores.json");
+const SURVEYS_FILE = path.join(DATA_DIR, "surveys.json");
+const SURVEY_RESPONSES_FILE = path.join(DATA_DIR, "survey-responses.json");
 
 interface User {
   id: string;
@@ -110,9 +112,22 @@ class Database {
   private surveys: Survey[] = [];
   private surveyResponses: SurveyResponse[] = [];
 
+  // データの初期化状態を追跡
+  private initialized = false;
+
   constructor() {
     this.initializeDataDir();
     this.loadStoresFromFile();
+  }
+
+  // 初回アクセス時にすべてのデータを読み込む
+  private async ensureInitialized() {
+    if (this.initialized) return;
+
+    console.log("🔄 Initializing database data...");
+    await Promise.all([this.loadStoresFromFile(), this.loadSurveysFromFile()]);
+    this.initialized = true;
+    console.log("✅ Database initialization complete");
   }
 
   private async initializeDataDir() {
@@ -125,10 +140,36 @@ class Database {
 
   private async loadStoresFromFile() {
     try {
-      // Vercel環境ではファイル読み込みをスキップ
       if (process.env.VERCEL) {
-        console.log(`⚠️ Vercel環境のため、ファイル読み込みをスキップします`);
-        console.log(`💾 Current memory stores count: ${this.stores.length}`);
+        // Vercel環境では、すでにメモリにデータがあるかチェック
+        if (this.stores.length > 0) {
+          console.log(`💾 Using existing memory stores: ${this.stores.length}`);
+          return;
+        }
+
+        // 環境変数からデータを読み込む（開発用）
+        const envData = process.env.STORES_DATA;
+        if (envData) {
+          try {
+            const parsedData = JSON.parse(envData);
+            this.stores = parsedData.map((store: any) => ({
+              ...store,
+              createdAt: new Date(store.createdAt),
+              updatedAt: new Date(store.updatedAt),
+            }));
+            console.log(
+              `📂 Loaded ${this.stores.length} stores from environment`
+            );
+            return;
+          } catch (error) {
+            console.error(
+              "Failed to parse stores data from environment:",
+              error
+            );
+          }
+        }
+
+        console.log(`⚠️ Vercel環境：新しいメモリストレージを開始`);
         return;
       }
 
@@ -172,6 +213,80 @@ class Database {
     }
   }
 
+  private async loadSurveysFromFile() {
+    try {
+      if (process.env.VERCEL) {
+        // Vercel環境では、すでにメモリにデータがあるかチェック
+        if (this.surveys.length > 0) {
+          console.log(
+            `💾 Using existing memory surveys: ${this.surveys.length}`
+          );
+          return;
+        }
+
+        // 環境変数からデータを読み込む（開発用）
+        const envData = process.env.SURVEYS_DATA;
+        if (envData) {
+          try {
+            const parsedData = JSON.parse(envData);
+            this.surveys = parsedData.map((survey: any) => ({
+              ...survey,
+              createdAt: new Date(survey.createdAt),
+            }));
+            console.log(
+              `📂 Loaded ${this.surveys.length} surveys from environment`
+            );
+            return;
+          } catch (error) {
+            console.error(
+              "Failed to parse surveys data from environment:",
+              error
+            );
+          }
+        }
+
+        console.log(`⚠️ Vercel環境：新しいアンケートメモリストレージを開始`);
+        return;
+      }
+
+      const data = await fs.readFile(SURVEYS_FILE, "utf-8");
+      const parsedData = JSON.parse(data);
+      this.surveys = parsedData.map((survey: any) => ({
+        ...survey,
+        createdAt: new Date(survey.createdAt),
+      }));
+      console.log(`📂 Loaded ${this.surveys.length} surveys from file`);
+    } catch (error) {
+      console.log(
+        "📂 No existing surveys file found, starting with empty surveys"
+      );
+      if (this.surveys.length === 0) {
+        this.surveys = [];
+      }
+    }
+  }
+
+  private async saveSurveysToFile() {
+    try {
+      // Vercel環境では書き込み権限がない場合があるため、エラーハンドリングを強化
+      if (process.env.VERCEL) {
+        console.log(
+          `⚠️ Vercel環境のため、アンケートファイル保存をスキップします (メモリのみ)`
+        );
+        console.log(`💾 Memory surveys count: ${this.surveys.length}`);
+        return;
+      }
+
+      await fs.writeFile(SURVEYS_FILE, JSON.stringify(this.surveys, null, 2));
+      console.log(`💾 Saved ${this.surveys.length} surveys to file`);
+    } catch (error) {
+      console.error("Failed to save surveys to file:", error);
+      console.log(
+        `💾 Continuing with memory-only storage. Surveys count: ${this.surveys.length}`
+      );
+    }
+  }
+
   // ユーザー管理
   async getUser(email: string): Promise<User | null> {
     return this.users.find((user) => user.email === email) || null;
@@ -189,8 +304,8 @@ class Database {
 
   // 店舗管理
   async getStores(userId: string): Promise<Store[]> {
-    // ファイルから最新のデータを読み込む
-    await this.loadStoresFromFile();
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
 
     console.log(`📊 DB.getStores called - userId: ${userId}`);
     console.log(`📊 Total stores in database: ${this.stores.length}`);
@@ -208,8 +323,8 @@ class Database {
   ): Promise<Store> {
     console.log(`➕ DB.createStore called with data:`, storeData);
 
-    // ファイルから最新のデータを読み込む
-    await this.loadStoresFromFile();
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
     console.log(`📊 Stores before creation: ${this.stores.length}`);
 
     const store: Store = {
@@ -341,29 +456,51 @@ class Database {
 
   // アンケート管理
   async getSurveys(userId: string, storeId?: string): Promise<Survey[]> {
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
+
     let surveys = this.surveys.filter((survey) => survey.userId === userId);
     if (storeId) {
       surveys = surveys.filter((survey) => survey.storeId === storeId);
     }
+    console.log(`📊 Found ${surveys.length} surveys for user ${userId}`);
     return surveys;
   }
 
   async createSurvey(
     surveyData: Omit<Survey, "id" | "responses" | "createdAt">
   ): Promise<Survey> {
+    console.log(`➕ Creating survey:`, surveyData);
+
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
+
     const survey: Survey = {
       ...surveyData,
       id: `survey_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       responses: 0,
       createdAt: new Date(),
     };
+
     this.surveys.push(survey);
+    console.log(
+      `✅ Survey created: ${survey.id}, total surveys: ${this.surveys.length}`
+    );
+
+    // ファイルに保存
+    await this.saveSurveysToFile();
+
     return survey;
   }
 
   async createSurveyResponse(
     responseData: Omit<SurveyResponse, "id" | "createdAt">
   ): Promise<SurveyResponse> {
+    console.log(`➕ Creating survey response:`, responseData);
+
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
+
     const response: SurveyResponse = {
       ...responseData,
       id: `response_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -375,8 +512,10 @@ class Database {
     const survey = this.surveys.find((s) => s.id === responseData.surveyId);
     if (survey) {
       survey.responses++;
+      console.log(`✅ Survey response count updated: ${survey.responses}`);
     }
 
+    console.log(`✅ Survey response created: ${response.id}`);
     return response;
   }
 
@@ -384,11 +523,19 @@ class Database {
     surveyId: string,
     userId: string
   ): Promise<SurveyResponse[]> {
-    return this.surveyResponses.filter(
+    // データベースの初期化を確実に行う
+    await this.ensureInitialized();
+
+    const responses = this.surveyResponses.filter(
       (response) =>
         response.surveyId === surveyId &&
         this.surveys.find((s) => s.id === surveyId && s.userId === userId)
     );
+
+    console.log(
+      `📊 Found ${responses.length} responses for survey ${surveyId}`
+    );
+    return responses;
   }
 
   // 分析データ
@@ -568,7 +715,18 @@ class Database {
 }
 
 // シングルトンインスタンス
-export const db = new Database();
+// グローバルなデータベースインスタンスを作成
+let globalDatabase: Database | undefined;
+
+function getDatabase(): Database {
+  if (!globalDatabase) {
+    console.log("🔄 Creating new database instance");
+    globalDatabase = new Database();
+  }
+  return globalDatabase;
+}
+
+export const db = getDatabase();
 
 export type {
   User,
