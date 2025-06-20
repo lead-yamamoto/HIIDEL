@@ -127,9 +127,17 @@ export default function AddStoreDialog({
 
   // 既に追加済みかどうかをチェックする関数
   const isStoreAlreadyAdded = (googleLocationId: string) => {
-    return existingStores.some(
-      (store) => store.googleLocationId === googleLocationId
+    // 完全パスとLocation IDの両方をチェック
+    const locationId = googleLocationId?.split("/").pop() || googleLocationId;
+    const isAdded = existingStores.some(
+      (store) =>
+        store.googleLocationId === googleLocationId ||
+        store.googleLocationId === locationId
     );
+    console.log(
+      `🔍 Checking if store is added: ${googleLocationId} (ID: ${locationId}) -> ${isAdded}`
+    );
+    return isAdded;
   };
 
   // フィルタリングされたGoogle位置情報（検索条件のみでフィルタリング、追加済み店舗も表示）
@@ -146,6 +154,11 @@ export default function AddStoreDialog({
     return matchesSearch;
   });
 
+  // 利用可能な店舗（追加されていない店舗）のみを表示
+  const availableGoogleLocations = filteredGoogleLocations.filter(
+    (location) => !isStoreAlreadyAdded(location.name)
+  );
+
   // 統計情報を計算
   const totalLocations = googleLocations.length;
   const addedStores = googleLocations.filter((location) =>
@@ -158,6 +171,18 @@ export default function AddStoreDialog({
       fetchGoogleLocations();
     }
   }, [isOpen]);
+
+  // existingStoresが更新された時にログ出力
+  useEffect(() => {
+    console.log(
+      "🏪 Existing stores updated:",
+      existingStores.map((s) => ({
+        id: s.id,
+        googleLocationId: s.googleLocationId,
+        displayName: s.displayName,
+      }))
+    );
+  }, [existingStores]);
 
   const fetchGoogleLocations = async () => {
     setIsLoading(true);
@@ -180,7 +205,34 @@ export default function AddStoreDialog({
           name: data.locations[0].name,
           title: data.locations[0].title,
           displayName: data.locations[0].displayName,
+          storefrontAddress: data.locations[0].storefrontAddress,
           allKeys: Object.keys(data.locations[0]),
+        });
+
+        // 既存店舗との比較をデバッグ
+        console.log(
+          "🏪 Existing stores for comparison:",
+          existingStores.map((s) => ({
+            id: s.id,
+            googleLocationId: s.googleLocationId,
+            displayName: s.displayName,
+          }))
+        );
+
+        // 追加済み判定をデバッグ
+        data.locations.forEach((location, index) => {
+          // location.nameから最後の部分（実際のLocation ID）を抽出
+          const locationId = location.name?.split("/").pop() || location.name;
+          const isAdded = existingStores.some(
+            (store) =>
+              store.googleLocationId === location.name ||
+              store.googleLocationId === locationId
+          );
+          console.log(
+            `🔍 Location ${index + 1}: ${
+              location.name
+            } (ID: ${locationId}) - Added: ${isAdded}`
+          );
         });
       }
 
@@ -206,7 +258,30 @@ export default function AddStoreDialog({
     try {
       console.log("➕ Adding store:", location.displayName);
 
-      const address = formatAddress(location.storefrontAddress);
+      // 住所の詳細な処理
+      const addressParts = [];
+      if (location.storefrontAddress?.addressLines) {
+        addressParts.push(...location.storefrontAddress.addressLines);
+      }
+      if (location.storefrontAddress?.locality) {
+        addressParts.push(location.storefrontAddress.locality);
+      }
+      if (location.storefrontAddress?.administrativeArea) {
+        addressParts.push(location.storefrontAddress.administrativeArea);
+      }
+      if (location.storefrontAddress?.postalCode) {
+        addressParts.push(location.storefrontAddress.postalCode);
+      }
+
+      const address =
+        addressParts.length > 0
+          ? addressParts.join(", ")
+          : formatAddress(location.storefrontAddress);
+
+      console.log("📍 Processed address:", {
+        original: location.storefrontAddress,
+        processed: address,
+      });
 
       const response = await fetch("/api/stores", {
         method: "POST",
@@ -239,17 +314,17 @@ export default function AddStoreDialog({
 
       // 即座に親コンポーネントを更新
       console.log("🔄 Calling onStoreAdded to refresh store list...");
-      await onStoreAdded();
+      onStoreAdded();
 
-      // Google Locationsも再取得して最新状態に
-      console.log("🔄 Refreshing Google locations...");
+      // Google locations を再取得して最新状態にする
+      console.log("🔄 Refreshing Google locations to update UI...");
       await fetchGoogleLocations();
 
       // 2秒後にダイアログを閉じる
       setTimeout(() => {
         setIsOpen(false);
         setSuccessMessage("");
-      }, 1500);
+      }, 2000);
     } catch (error) {
       console.error("💥 Error adding store:", error);
       setError(
@@ -264,39 +339,22 @@ export default function AddStoreDialog({
     if (!address) return "住所未設定";
 
     const parts = [];
-
-    // 住所行を追加
     if (address.addressLines && address.addressLines.length > 0) {
       parts.push(...address.addressLines);
     }
+    if (address.locality) parts.push(address.locality);
+    if (address.administrativeArea) parts.push(address.administrativeArea);
+    if (address.postalCode) parts.push(address.postalCode);
 
-    // 市区町村を追加
-    if (address.locality) {
-      parts.push(address.locality);
-    }
+    const formattedAddress = parts.length > 0 ? parts.join(", ") : "住所未設定";
 
-    // 都道府県を追加
-    if (address.administrativeArea) {
-      parts.push(address.administrativeArea);
-    }
-
-    // 郵便番号を追加
-    if (address.postalCode) {
-      parts.push(address.postalCode);
-    }
-
-    // 国を追加（必要に応じて）
-    if (address.country && address.country !== "JP") {
-      parts.push(address.country);
-    }
-
-    const formattedAddress = parts.join(", ");
-    console.log("📍 Formatted address:", {
-      original: address,
-      formatted: formattedAddress,
+    console.log("📍 Format address:", {
+      input: address,
+      parts: parts,
+      output: formattedAddress,
     });
 
-    return formattedAddress || "住所未設定";
+    return formattedAddress;
   };
 
   return (
@@ -313,8 +371,8 @@ export default function AddStoreDialog({
             連携されたGoogleビジネスプロフィールから店舗を選択して、HIIDELに追加できます。
             {!isLoading && googleLocations.length > 0 && (
               <div className="mt-2 text-sm text-muted-foreground">
-                総店舗数: {totalLocations}件 / 追加可能: {availableStores}件 /
-                追加済み: {addedStores}件
+                総店舗数: {googleLocations.length}件 / 追加可能:{" "}
+                {availableStores}件 / 追加済み: {addedStores}件
               </div>
             )}
           </DialogDescription>
@@ -344,7 +402,7 @@ export default function AddStoreDialog({
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-600">
-                  {availableStores}
+                  {availableGoogleLocations.length}
                 </div>
                 <div className="text-xs text-muted-foreground">追加可能</div>
               </div>
@@ -564,8 +622,8 @@ export default function AddStoreDialog({
         {/* Locations List */}
         {!isLoading && (
           <div className="flex-1 overflow-auto space-y-3">
-            {filteredGoogleLocations.length > 0 ? (
-              filteredGoogleLocations.map((location, index) => (
+            {availableGoogleLocations.length > 0 ? (
+              availableGoogleLocations.map((location, index) => (
                 <motion.div
                   key={location.name}
                   initial={{ opacity: 0, y: 20 }}
@@ -585,11 +643,6 @@ export default function AddStoreDialog({
                                 テスト
                               </span>
                             )}
-                            {isStoreAlreadyAdded(location.name) && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
-                                ✓ 追加済み
-                              </span>
-                            )}
                           </CardTitle>
                           {location.primaryCategory?.displayName && (
                             <CardDescription className="mt-1">
@@ -597,31 +650,20 @@ export default function AddStoreDialog({
                             </CardDescription>
                           )}
                         </div>
-                        {isStoreAlreadyAdded(location.name) ? (
-                          <Button
-                            disabled
-                            size="sm"
-                            variant="outline"
-                            className="ml-4 text-green-700 border-green-200 bg-green-50"
-                          >
-                            <CheckCircle size={14} className="mr-1" /> 追加済み
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() => addStore(location)}
-                            disabled={isAdding}
-                            size="sm"
-                            className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white border-none ml-4"
-                          >
-                            {isAdding ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <>
-                                <Plus size={14} className="mr-1" /> 追加
-                              </>
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          onClick={() => addStore(location)}
+                          disabled={isAdding}
+                          size="sm"
+                          className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white border-none ml-4"
+                        >
+                          {isAdding ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <>
+                              <Plus size={14} className="mr-1" /> 追加
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
@@ -672,6 +714,14 @@ export default function AddStoreDialog({
                       <p>検索結果がありません</p>
                       <p className="text-xs mt-2">
                         検索条件を変更してお試しください
+                      </p>
+                    </div>
+                  ) : filteredGoogleLocations.length > 0 ? (
+                    <div>
+                      <p>すべての店舗が追加済みです</p>
+                      <p className="text-xs mt-2">
+                        新しい店舗を追加するには、Google Business
+                        Profileで店舗を登録してください
                       </p>
                     </div>
                   ) : (

@@ -210,8 +210,11 @@ export async function GET(request: NextRequest) {
           console.log(`🌐 Generated review URL: ${googleReviewUrl}`);
 
           return {
-            googleLocationId: locationId,
+            name: location.name, // Google Location ID（完全パス）
+            googleLocationId: locationId, // 後方互換性のため
             displayName: location.title || "名称未設定",
+            title: location.title || "名称未設定", // ダイアログで使用
+            storefrontAddress: location.storefrontAddress || {}, // 元の構造を保持
             address: location.storefrontAddress
               ? `${location.storefrontAddress.addressLines?.join(" ") || ""} ${
                   location.storefrontAddress.locality || ""
@@ -219,8 +222,11 @@ export async function GET(request: NextRequest) {
                   location.storefrontAddress.postalCode || ""
                 }`.trim()
               : "住所未設定",
-            phone: location.phoneNumbers?.primaryPhone || "",
-            website: location.websiteUri || "",
+            primaryPhone: location.phoneNumbers?.primaryPhone || "",
+            phone: location.phoneNumbers?.primaryPhone || "", // 後方互換性
+            websiteUri: location.websiteUri || "",
+            website: location.websiteUri || "", // 後方互換性
+            primaryCategory: location.categories?.primaryCategory || {},
             category: location.categories?.primaryCategory?.displayName || "",
             placeId: placeId || "",
             mapsUri: location.metadata?.mapsUri || "",

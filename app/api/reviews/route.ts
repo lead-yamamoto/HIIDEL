@@ -123,83 +123,21 @@ export async function GET(request: NextRequest) {
             const accountName = accountsData.accounts[0].name;
             console.log(`🏢 Using account: ${accountName}`);
 
-            // Google Business Profile APIの複数のエンドポイントを試行
-            // accountName形式: accounts/123456789
-            // locationId形式: 12345678901234567890
-            const reviewsUrls = [
-              // 従来のMy Business API
-              `https://mybusiness.googleapis.com/v4/${accountName}/locations/${store.googleLocationId}/reviews`,
-              // 別の形式
-              `https://mybusiness.googleapis.com/v4/accounts/${
-                accountName.split("/")[1]
-              }/locations/${store.googleLocationId}/reviews`,
-            ];
+            // 正しいレビューエンドポイントを使用
+            const reviewsUrl = `https://mybusiness.googleapis.com/v4/${accountName}/${store.googleLocationId}/reviews`;
+            console.log(`🔗 Reviews API URL: ${reviewsUrl}`);
 
-            console.log(`🔗 Account Name: ${accountName}`);
-            console.log(`🔗 Location ID: ${store.googleLocationId}`);
-            console.log(`🔗 Trying multiple API endpoints:`, reviewsUrls);
-
-            let reviewsResponse: Response | null = null;
-            let reviewsUrl = "";
-            let lastError = "";
-
-            // 複数のエンドポイントを順番に試行
-            for (const url of reviewsUrls) {
-              console.log(`🔗 Trying Reviews API URL: ${url}`);
-              reviewsUrl = url;
-
-              try {
-                reviewsResponse = await fetch(reviewsUrl, {
-                  method: "GET",
-                  headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                  },
-                });
-
-                console.log(
-                  `📍 Reviews API response status for ${url}: ${reviewsResponse.status}`
-                );
-
-                if (reviewsResponse.ok) {
-                  console.log(`✅ Success with endpoint: ${url}`);
-                  break; // 成功したらループを抜ける
-                } else {
-                  const errorText = await reviewsResponse.text();
-                  lastError = errorText;
-                  console.log(
-                    `❌ Failed with endpoint: ${url}, status: ${reviewsResponse.status}, error: ${errorText}`
-                  );
-
-                  if (
-                    reviewsResponse.status !== 400 &&
-                    reviewsResponse.status !== 404
-                  ) {
-                    // 400や404以外のエラーの場合は、このレスポンスを使用
-                    break;
-                  }
-                }
-              } catch (error) {
-                console.error(`💥 Network error with endpoint: ${url}`, error);
-                lastError =
-                  error instanceof Error ? error.message : "Network error";
-              }
-            }
-
-            if (!reviewsResponse) {
-              throw new Error(
-                `All API endpoints failed. Last error: ${lastError}`
-              );
-            }
+            const reviewsResponse = await fetch(reviewsUrl, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+            });
 
             console.log(
-              `📍 Final Reviews API response status: ${reviewsResponse.status}`
+              `📍 Reviews API response status: ${reviewsResponse.status}`
             );
-            console.log(
-              `📍 Final Reviews API response headers:`,
-              Object.fromEntries(reviewsResponse.headers.entries())
-            );
-            console.log(`📍 Final Reviews API URL used: ${reviewsUrl}`);
 
             if (reviewsResponse.ok) {
               const reviewsData = await reviewsResponse.json();
@@ -272,88 +210,84 @@ export async function GET(request: NextRequest) {
                 allReviews.push(noReviewsMessage);
               }
             } else {
-              // エラーテキストを取得（既に読み込まれている場合は lastError を使用）
-              let errorText = lastError;
-              if (!errorText) {
-                try {
-                  errorText = await reviewsResponse.text();
-                } catch (e) {
-                  errorText = "Failed to read error response";
-                }
-              }
-
+              const errorText = await reviewsResponse.text();
               console.error(
                 `❌ Failed to fetch reviews for ${store.displayName}:`,
                 {
                   status: reviewsResponse.status,
                   statusText: reviewsResponse.statusText,
                   errorBody: errorText,
-                  finalUrl: reviewsUrl,
                 }
               );
 
-              // より詳細なエラー分析
-              let errorMessage = "";
-              let messageType = "";
-
+              // レビューアクセスが制限されている場合
               if (reviewsResponse.status === 403) {
                 console.warn(
-                  `🔒 Reviews API access restricted for ${store.displayName} - this is normal for most Google Business Profile accounts`
+                  `�� Reviews API access restricted for ${store.displayName} - this is normal for some Google Business Profile accounts`
                 );
-                errorMessage =
-                  "Google Business Profile APIの制限により、この店舗のレビューにアクセスできません。これは一般的な制限で、プライバシー保護のためレビューデータへの直接アクセスは多くの場合制限されています。\n\n代替案：\n• Google My Businessの管理画面で直接レビューを確認\n• アンケート機能を活用してお客様の声を収集\n• QRコードでお客様にGoogleレビューへの投稿を促進";
-                messageType = "api_access_restricted";
-              } else if (reviewsResponse.status === 404) {
-                console.warn(
-                  `📝 Reviews endpoint not found for ${store.displayName}`
+
+                // API制限の説明メッセージを追加
+                const apiLimitationMessage = {
+                  id: `api_limitation_${store.id}_${Date.now()}`,
+                  storeId: store.id,
+                  storeName: store.displayName || "店舗名未設定",
+                  googleLocationId: store.googleLocationId,
+                  rating: 0,
+                  comment:
+                    "Google Business Profile APIの制限により、この店舗のレビューの詳細内容を取得することができません。プライバシー保護のため、多くの場合レビューテキストへのアクセスは制限されています。",
+                  reviewer: {
+                    displayName: "システム通知",
+                    profilePhotoUrl: null,
+                  },
+                  createdAt: new Date().toISOString(),
+                  updateTime: new Date().toISOString(),
+                  replied: false,
+                  replyText: null,
+                  replyTime: null,
+                  isRealData: false,
+                  isSystemMessage: true,
+                  messageType: "api_limitation",
+                };
+
+                allReviews.push(apiLimitationMessage);
+                console.log(
+                  `ℹ️ Added API limitation notice for ${store.displayName}`
                 );
-                errorMessage =
-                  "この店舗のレビューエンドポイントが見つかりませんでした。店舗がGoogle Business Profileで正しく設定されていない可能性があります。";
-                messageType = "endpoint_not_found";
-              } else if (reviewsResponse.status === 401) {
-                console.warn(`🔐 Authentication failed for reviews API`);
-                errorMessage =
-                  "Google認証の有効期限が切れています。再度Google Business Profileとの連携を行ってください。";
-                messageType = "auth_expired";
-              } else if (reviewsResponse.status === 400) {
-                console.warn(
-                  `📝 Bad request for reviews API - ${store.displayName}`
-                );
-                console.warn(`📝 Request URL was: ${reviewsUrl}`);
-                console.warn(`📝 Account Name: ${accountName}`);
-                console.warn(`📝 Location ID: ${store.googleLocationId}`);
-                errorMessage = `リクエストの形式に問題があります。店舗ID「${store.googleLocationId}」が正しくない可能性があります。\n\n確認事項：\n• 店舗がGoogle Business Profileで正しく設定されているか\n• Location IDが正しい形式か\n• APIエンドポイントが正しいか\n\nエラー詳細: ${errorText}`;
-                messageType = "bad_request";
-              } else {
-                errorMessage = `レビューの取得中にエラーが発生しました（ステータス: ${reviewsResponse.status}）。Google Business Profile APIの一時的な問題の可能性があります。\n\nエラー詳細: ${errorText}`;
-                messageType = "api_error";
               }
 
-              const errorNotificationMessage = {
-                id: `error_${store.id}_${Date.now()}`,
-                storeId: store.id,
-                storeName: store.displayName || "店舗名未設定",
-                googleLocationId: store.googleLocationId,
-                rating: 0,
-                comment: errorMessage,
-                reviewer: {
-                  displayName: "システム通知",
-                  profilePhotoUrl: null,
-                },
-                createdAt: new Date().toISOString(),
-                updateTime: new Date().toISOString(),
-                replied: false,
-                replyText: null,
-                replyTime: null,
-                isRealData: false,
-                isSystemMessage: true,
-                messageType: messageType,
-              };
+              if (reviewsResponse.status === 404) {
+                console.warn(
+                  `📝 Reviews not found for ${store.displayName} - location may not have reviews or API access may be restricted`
+                );
 
-              allReviews.push(errorNotificationMessage);
-              console.log(
-                `ℹ️ Added error notification for ${store.displayName}`
-              );
+                // 404の場合の説明メッセージを追加
+                const notFoundMessage = {
+                  id: `notfound_${store.id}_${Date.now()}`,
+                  storeId: store.id,
+                  storeName: store.displayName || "店舗名未設定",
+                  googleLocationId: store.googleLocationId,
+                  rating: 0,
+                  comment:
+                    "この店舗のレビューが見つかりませんでした。店舗にまだレビューが投稿されていないか、Google Business Profileの設定でレビューが非公開になっている可能性があります。",
+                  reviewer: {
+                    displayName: "システム通知",
+                    profilePhotoUrl: null,
+                  },
+                  createdAt: new Date().toISOString(),
+                  updateTime: new Date().toISOString(),
+                  replied: false,
+                  replyText: null,
+                  replyTime: null,
+                  isRealData: false,
+                  isSystemMessage: true,
+                  messageType: "no_reviews_found",
+                };
+
+                allReviews.push(notFoundMessage);
+                console.log(
+                  `ℹ️ Added no reviews found notice for ${store.displayName}`
+                );
+              }
             }
           } else {
             console.error(`❌ No accounts found for user`);
@@ -482,21 +416,13 @@ export async function GET(request: NextRequest) {
         hasComment: !!r.comment,
         isRealData: r.isRealData,
         replied: r.replied,
-        messageType: r.messageType,
       }))
     );
-
-    const realReviewsCount = filteredReviews.filter((r) => r.isRealData).length;
-    const systemMessagesCount = filteredReviews.filter(
-      (r) => r.isSystemMessage
-    ).length;
 
     return NextResponse.json({
       reviews: filteredReviews,
       count: filteredReviews.length,
       totalCount: allReviews.length,
-      realReviewsCount: realReviewsCount,
-      systemMessagesCount: systemMessagesCount,
       storeId: storeId || null,
       unreplied: unreplied,
       limit: limit,
@@ -508,11 +434,11 @@ export async function GET(request: NextRequest) {
           ? "未返信のレビューはありません。"
           : filteredReviews.length === 0
           ? "レビューデータを取得できませんでした。Google Business Profile APIのアクセス制限により、レビューの詳細情報が利用できない可能性があります。"
-          : realReviewsCount > 0
-          ? `${realReviewsCount}件の${
+          : filteredReviews.filter((r) => r.isRealData).length > 0
+          ? `${filteredReviews.filter((r) => r.isRealData).length}件の${
               unreplied ? "未返信" : ""
             }レビューを取得しました。`
-          : "Google Business Profile APIの制限により、レビューの詳細情報を取得できませんでした。システム通知をご確認ください。",
+          : "Google Business Profile APIの制限により、レビューの詳細情報を取得できませんでした。店舗の統計情報や設定をご確認ください。",
     });
   } catch (error) {
     console.error("Reviews GET Error:", error);

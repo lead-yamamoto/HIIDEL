@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
     const accountName = accountsData.accounts[0].name;
     console.log(`✅ Using account: ${accountName}`);
 
-    // 正しいGoogle My Business API v4.9のレビューエンドポイントを使用
-    const apiUrl = `https://mybusiness.googleapis.com/v4/${accountName}/locations/${locationId}/reviews`;
+    // Google Business Profile API の最新エンドポイントを使用
+    const apiUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations/${locationId}/reviews`;
     console.log(`🔗 API URL: ${apiUrl}`);
 
     const reviewsResponse = await fetch(apiUrl, {

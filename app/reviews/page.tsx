@@ -164,23 +164,10 @@ export default function ReviewsPage() {
       console.log("📡 Response data:", data);
       console.log("📡 Reviews array:", data.reviews);
       console.log("📡 Reviews count:", data.count);
-      console.log("📡 Real reviews count:", data.realReviewsCount);
-      console.log("📡 System messages count:", data.systemMessagesCount);
       console.log("📡 Stores checked:", data.storesChecked);
       console.log("📡 Is real data:", data.isRealData);
       if (data.reviews && data.reviews.length > 0) {
         console.log("📡 First review:", data.reviews[0]);
-        data.reviews.forEach((review: Review, index: number) => {
-          console.log(`📡 Review ${index + 1}:`, {
-            id: review.id,
-            storeName: review.storeName,
-            rating: review.rating,
-            isRealData: review.isRealData,
-            isSystemMessage: review.isSystemMessage,
-            messageType: review.messageType,
-            commentPreview: review.comment?.substring(0, 50) + "...",
-          });
-        });
       } else {
         console.log("❌ No reviews found in response");
       }
@@ -759,67 +746,29 @@ export default function ReviewsPage() {
                                     </p>
 
                                     {/* システムメッセージの詳細 */}
-                                    {review.isSystemMessage && (
-                                      <div className="mt-3">
-                                        {review.messageType ===
-                                          "api_access_restricted" && (
-                                          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                                            <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-1">
-                                              🔒 APIアクセス制限
-                                            </h4>
-                                            <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
-                                              <p>
-                                                Google Business Profile
-                                                APIの制限により、レビューデータに直接アクセスできません。
-                                              </p>
-                                              <p className="font-medium mt-2">
-                                                代替手段：
-                                              </p>
-                                              <ul className="list-disc list-inside space-y-1 ml-2">
-                                                <li>
-                                                  Google My
-                                                  Businessの管理画面でレビューを確認
-                                                </li>
-                                                <li>
-                                                  アンケート機能でお客様の声を収集
-                                                </li>
-                                                <li>
-                                                  QRコードでGoogleレビューへの投稿を促進
-                                                </li>
-                                              </ul>
-                                            </div>
+                                    {review.isSystemMessage &&
+                                      review.messageType ===
+                                        "api_limitation" && (
+                                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                                            💡 レビューアクセスについて
+                                          </h4>
+                                          <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                                            <p>
+                                              • Google Business Profile
+                                              APIは、プライバシー保護のためレビューの詳細内容へのアクセスを制限しています
+                                            </p>
+                                            <p>
+                                              •
+                                              レビューの統計情報や概要は取得できる場合があります
+                                            </p>
+                                            <p>
+                                              • 実際のレビューはGoogle Business
+                                              Profileの管理画面で確認できます
+                                            </p>
                                           </div>
-                                        )}
-
-                                        {(review.messageType ===
-                                          "api_limitation" ||
-                                          !review.messageType) &&
-                                          review.comment.includes(
-                                            "プライバシー保護"
-                                          ) && (
-                                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                                                💡 レビューアクセスについて
-                                              </h4>
-                                              <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                                                <p>
-                                                  • Google Business Profile
-                                                  APIは、プライバシー保護のためレビューの詳細内容へのアクセスを制限しています
-                                                </p>
-                                                <p>
-                                                  •
-                                                  レビューの統計情報や概要は取得できる場合があります
-                                                </p>
-                                                <p>
-                                                  • 実際のレビューはGoogle
-                                                  Business
-                                                  Profileの管理画面で確認できます
-                                                </p>
-                                              </div>
-                                            </div>
-                                          )}
-                                      </div>
-                                    )}
+                                        </div>
+                                      )}
 
                                     {review.isSystemMessage &&
                                       review.messageType ===
@@ -910,110 +859,6 @@ export default function ReviewsPage() {
                                               •
                                               しばらく時間をおいて再度お試しください
                                             </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType === "bad_request" && (
-                                        <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                                          <h4 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                                            ❌ リクエストエラー (400)
-                                          </h4>
-                                          <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
-                                            <p>
-                                              APIリクエストの形式に問題があります。
-                                            </p>
-                                            <p className="font-medium mt-2">
-                                              考えられる原因：
-                                            </p>
-                                            <ul className="list-disc list-inside space-y-1 ml-2">
-                                              <li>店舗IDの形式が正しくない</li>
-                                              <li>
-                                                Google Business
-                                                Profileの設定に問題がある
-                                              </li>
-                                              <li>
-                                                APIエンドポイントが変更された
-                                              </li>
-                                            </ul>
-                                            <details className="mt-2">
-                                              <summary className="cursor-pointer text-xs underline">
-                                                詳細エラー情報
-                                              </summary>
-                                              <div className="mt-1 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded max-h-32 overflow-y-auto">
-                                                <pre className="whitespace-pre-wrap text-xs">
-                                                  {review.comment}
-                                                </pre>
-                                              </div>
-                                            </details>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType === "auth_expired" && (
-                                        <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                                          <h4 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
-                                            🔐 認証期限切れ
-                                          </h4>
-                                          <div className="text-xs text-orange-700 dark:text-orange-300">
-                                            <p>
-                                              Google認証の有効期限が切れています。
-                                            </p>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              className="mt-2 text-xs h-6"
-                                              onClick={() =>
-                                                (window.location.href =
-                                                  "/google-business/connect")
-                                              }
-                                            >
-                                              再認証する
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType ===
-                                        "endpoint_not_found" && (
-                                        <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                                          <h4 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                                            ❌ エンドポイント未発見 (404)
-                                          </h4>
-                                          <div className="text-xs text-red-700 dark:text-red-300">
-                                            <p>
-                                              店舗のレビューエンドポイントが見つかりません。Google
-                                              Business
-                                              Profileの設定を確認してください。
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType === "api_error" && (
-                                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                                          <h4 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">
-                                            ⚠️ APIエラー
-                                          </h4>
-                                          <div className="text-xs text-gray-700 dark:text-gray-300">
-                                            <p>
-                                              Google
-                                              APIの一時的な問題によりレビューを取得できませんでした。しばらく時間をおいて再試行してください。
-                                            </p>
-                                            <details className="mt-2">
-                                              <summary className="cursor-pointer text-xs underline">
-                                                詳細エラー情報
-                                              </summary>
-                                              <div className="mt-1 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded max-h-32 overflow-y-auto">
-                                                <pre className="whitespace-pre-wrap text-xs">
-                                                  {review.comment}
-                                                </pre>
-                                              </div>
-                                            </details>
                                           </div>
                                         </div>
                                       )}

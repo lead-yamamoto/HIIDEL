@@ -30,6 +30,11 @@ interface Store {
   createdAt: Date;
   updatedAt: Date;
   googleReviewUrl?: string;
+  placeId?: string;
+  rating?: number;
+  reviewCount?: number;
+  isActive?: boolean;
+  title?: string;
 }
 
 interface QRCode {
@@ -212,6 +217,9 @@ class Database {
       id: `store_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date(),
       updatedAt: new Date(),
+      isActive: storeData.isActive ?? true,
+      rating: storeData.rating ?? 0,
+      reviewCount: storeData.reviewCount ?? 0,
     };
 
     console.log(`✅ New store object created:`, store);
