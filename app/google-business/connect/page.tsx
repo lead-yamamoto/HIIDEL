@@ -41,6 +41,7 @@ export default function GoogleBusinessConnectPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [redirectCountdown, setRedirectCountdown] = useState(5);
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -65,6 +66,24 @@ export default function GoogleBusinessConnectPage() {
       checkGoogleAuth();
     }
   }, [mounted]);
+
+  // 連携成功時のリダイレクト処理
+  useEffect(() => {
+    if (success && isAuthenticated && userInfo) {
+      const countdown = setInterval(() => {
+        setRedirectCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdown);
+            window.location.href = "/";
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdown);
+    }
+  }, [success, isAuthenticated, userInfo]);
 
   const getErrorMessage = (errorCode: string) => {
     switch (errorCode) {
@@ -214,12 +233,26 @@ export default function GoogleBusinessConnectPage() {
               >
                 <Alert className="mb-6 border-green-200 bg-green-50">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertTitle className="text-green-800">連携完了</AlertTitle>
+                  <AlertTitle className="text-green-800">
+                    🎉 連携完了！
+                  </AlertTitle>
                   <AlertDescription className="text-green-700">
                     {userInfo.email}{" "}
                     でGoogleビジネスプロフィールとの連携が完了しました。
+                    <br />
+                    <strong>{redirectCountdown}秒後</strong>
+                    にダッシュボードにリダイレクトします...
                   </AlertDescription>
                 </Alert>
+                <div className="text-center">
+                  <Button
+                    onClick={() => (window.location.href = "/")}
+                    className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white"
+                  >
+                    今すぐダッシュボードへ{" "}
+                    <ArrowRight size={16} className="ml-2" />
+                  </Button>
+                </div>
               </motion.div>
             )}
 
@@ -240,7 +273,7 @@ export default function GoogleBusinessConnectPage() {
               >
                 <Card className="mb-6">
                   <CardHeader>
-                    <CardTitle>Googleビジネスプロフィールと連携</CardTitle>
+                    <CardTitle>🔗 Googleビジネスプロフィールと連携</CardTitle>
                     <CardDescription>
                       Googleビジネスプロフィールと連携して、レビューの管理や店舗情報の同期を行います
                     </CardDescription>
@@ -294,7 +327,7 @@ export default function GoogleBusinessConnectPage() {
               </motion.div>
             )}
 
-            {isAuthenticated && userInfo && (
+            {isAuthenticated && userInfo && !success && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -324,9 +357,16 @@ export default function GoogleBusinessConnectPage() {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter>
+                  <CardFooter className="space-x-2">
                     <Button variant="outline" onClick={clearAuthAndRetry}>
                       連携を解除して再設定
+                    </Button>
+                    <Button
+                      onClick={() => (window.location.href = "/")}
+                      className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white"
+                    >
+                      ダッシュボードへ戻る{" "}
+                      <ArrowRight size={16} className="ml-2" />
                     </Button>
                   </CardFooter>
                 </Card>
