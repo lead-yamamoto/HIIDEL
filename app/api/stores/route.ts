@@ -144,6 +144,11 @@ export async function GET(request: NextRequest) {
     // 単一店舗の取得（公開アクセス可能 - アンケート用）
     if (storeId) {
       console.log(`🔍 Getting single store (public access): ${storeId}`);
+      console.log(`📡 Store API Request URL: ${request.url}`);
+      console.log(
+        `📡 Store API Request headers:`,
+        Object.fromEntries(request.headers.entries())
+      );
 
       // 全ユーザーの店舗から検索
       let allStores: any[] = [];

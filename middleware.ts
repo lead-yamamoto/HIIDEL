@@ -14,19 +14,19 @@ export default withAuth(
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (authentication routes)
-     * - api/google (Google integration routes - not requiring session auth)
-     * - api/analytics (analytics routes - allowing public access for dashboard)
-     * - api/surveys (survey-related routes - public access)
-     * - api/stores (store routes - public access for surveys)
-     * - s (survey response pages - public access)
-     * - auth (authentication pages)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - static assets (svg, png, jpg, etc.)
+     * 認証が必要なページのみマッチさせる
+     * 除外するパス:
+     * - /api/auth/* (NextAuth routes)
+     * - /api/google/* (Google integration)
+     * - /api/analytics/* (Analytics)
+     * - /api/surveys/* (Survey routes - public)
+     * - /api/stores* (Store routes - public for surveys)
+     * - /s/* (Survey response pages)
+     * - /auth/* (Auth pages)
+     * - /_next/* (Next.js internals)
+     * - /favicon.ico
+     * - static files
      */
-    "/((?!api/auth|api/google|api/analytics|api/surveys|api/stores|s|auth|_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.ico).*)",
+    "/((?!api/auth/|api/google/|api/analytics/|api/surveys|api/stores|s/|auth/|_next/|favicon\\.ico|.*\\.(svg|png|jpg|jpeg|webp|ico)$).*)",
   ],
 };

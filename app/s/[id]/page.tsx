@@ -77,9 +77,16 @@ export default function SurveyResponsePage({
         // 店舗のGoogleレビューURLを取得
         if (data.survey.storeId) {
           console.log(`🏪 Fetching store data for: ${data.survey.storeId}`);
-          const storeResponse = await fetch(
-            `/api/stores?id=${data.survey.storeId}`
+          const storeUrl = `/api/stores?id=${data.survey.storeId}`;
+          console.log(`🏪 Store API URL: ${storeUrl}`);
+
+          const storeResponse = await fetch(storeUrl);
+          console.log(`🏪 Store API response status: ${storeResponse.status}`);
+          console.log(
+            `🏪 Store API response headers:`,
+            Object.fromEntries(storeResponse.headers.entries())
           );
+
           if (storeResponse.ok) {
             const storeData = await storeResponse.json();
             console.log(`🏪 Store API response:`, storeData);
