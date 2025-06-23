@@ -10,12 +10,13 @@ async function getAuthenticatedUserId(): Promise<string | null> {
       console.log("✅ 認証されたユーザーID:", session.user.id);
       return session.user.id;
     }
-    console.log("⚠️ セッションが見つからない、フォールバックを使用");
-    // フォールバック: デモユーザー
-    return "1";
+
+    // セッションが見つからない場合はnullを返す（フォールバックしない）
+    console.log("⚠️ セッションが見つかりません - 認証が必要です");
+    return null;
   } catch (error) {
     console.error("認証エラー:", error);
-    return "1"; // フォールバック
+    return null;
   }
 }
 
