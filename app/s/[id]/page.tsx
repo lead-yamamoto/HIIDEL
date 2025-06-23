@@ -57,7 +57,7 @@ export default function SurveyResponsePage({
   const [improvementText, setImprovementText] = useState("");
   const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
-  const [isRedirecting, setIsRedirecting] = useState(false);
+
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -288,12 +288,6 @@ export default function SurveyResponsePage({
       console.log(
         `✅ 平均評価が4.0以上のため、Googleレビューページへ遷移します`
       );
-      console.log(`🔍 Debug: GoogleレビューURL存在チェック:`, {
-        googleReviewUrl,
-        hasUrl: !!googleReviewUrl,
-        urlType: typeof googleReviewUrl,
-        urlLength: googleReviewUrl?.length || 0,
-      });
 
       if (googleReviewUrl) {
         setIsSubmitting(true);
@@ -316,192 +310,11 @@ export default function SurveyResponsePage({
           });
 
           if (response.ok) {
-            // 正しいPlace IDベースのGoogleレビューURLを取得
             console.log(
-              `🌐 Redirecting to Google Review URL: ${googleReviewUrl}`
+              `🚀 Redirecting to Google Review URL: ${googleReviewUrl}`
             );
-            console.log(`📍 Store: ${storeName || "店舗名未設定"}`);
-
-            // Place IDが含まれているかチェック
-            if (
-              googleReviewUrl.includes(
-                "search.google.com/local/writereview?placeid="
-              ) &&
-              !googleReviewUrl.includes("locations/")
-            ) {
-              console.log(`✅ Using verified Google Review URL with Place ID`);
-            } else {
-              console.log(`⚠️ Using fallback Google Review URL`);
-            }
-
-            // リダイレクト状態を設定
-            console.log(
-              `🌟 Setting redirect state for URL: ${googleReviewUrl}`
-            );
-            setIsRedirecting(true);
-
-            // デバイス別のリダイレクト処理
-            const executeRedirect = () => {
-              console.log(`🚀 Executing redirect to: ${googleReviewUrl}`);
-              console.log(`📱 Device: ${isMobile ? "Mobile" : "Desktop"}`);
-
-              if (isMobile) {
-                // モバイル: 複数の方法を試行して新しいタブで開く
-                console.log(
-                  `📱 Mobile: Attempting multiple methods to open new tab`
-                );
-
-                let newTabOpened = false;
-
-                // 方法1: window.open with specific mobile parameters
-                try {
-                  const newWindow = window.open(
-                    googleReviewUrl,
-                    "_blank",
-                    "noopener,noreferrer"
-                  );
-                  if (newWindow && !newWindow.closed) {
-                    console.log(`✅ Mobile Method 1: window.open succeeded`);
-                    newTabOpened = true;
-                  } else {
-                    console.log(
-                      `❌ Mobile Method 1: window.open failed or blocked`
-                    );
-                  }
-                } catch (error) {
-                  console.error("🚨 Mobile Method 1 failed:", error);
-                }
-
-                // 方法2: プログラム的なリンククリック（モバイル最適化）
-                if (!newTabOpened) {
-                  try {
-                    const link = document.createElement("a");
-                    link.href = googleReviewUrl;
-                    link.target = "_blank";
-                    link.rel = "noopener noreferrer";
-
-                    // モバイル向けの追加属性
-                    link.style.display = "none";
-
-                    document.body.appendChild(link);
-                    console.log(`📝 Mobile Method 2: Link added to DOM`);
-
-                    // タッチイベントをシミュレート
-                    const touchEvent = new Event("touchstart", {
-                      bubbles: true,
-                    });
-                    link.dispatchEvent(touchEvent);
-
-                    link.click();
-                    console.log(
-                      `👆 Mobile Method 2: Link clicked with touch simulation`
-                    );
-
-                    document.body.removeChild(link);
-                    newTabOpened = true;
-                    console.log(`✅ Mobile Method 2: Link click completed`);
-                  } catch (error) {
-                    console.error("🚨 Mobile Method 2 failed:", error);
-                  }
-                }
-
-                // 方法3: 遅延実行でのwindow.open
-                if (!newTabOpened) {
-                  try {
-                    setTimeout(() => {
-                      const newWindow = window.open(googleReviewUrl, "_blank");
-                      if (newWindow) {
-                        console.log(
-                          `✅ Mobile Method 3: Delayed window.open succeeded`
-                        );
-                      } else {
-                        console.log(
-                          `❌ Mobile Method 3: Delayed window.open failed`
-                        );
-                      }
-                    }, 100);
-                    newTabOpened = true;
-                  } catch (error) {
-                    console.error("🚨 Mobile Method 3 failed:", error);
-                  }
-                }
-
-                // 元のタブは完了画面を表示
-                setTimeout(() => {
-                  console.log(
-                    `🎉 Mobile: Showing completion screen in current tab`
-                  );
-                  setIsSubmitted(true);
-                  setIsSubmitting(false);
-                  setIsRedirecting(false);
-                }, 1500); // モバイルは少し長めに待つ
-              } else {
-                // デスクトップ: 従来の方法
-                console.log(`💻 Desktop: Opening in new tab`);
-                try {
-                  // ユーザーアクションによるリダイレクトとして実行
-                  const link = document.createElement("a");
-                  link.href = googleReviewUrl;
-                  link.target = "_blank";
-                  link.rel = "noopener noreferrer";
-
-                  console.log(`🔗 Debug: リンク要素作成完了`, {
-                    href: link.href,
-                    target: link.target,
-                  });
-
-                  // リンクを一時的にDOMに追加してクリック
-                  document.body.appendChild(link);
-                  console.log(`📝 Debug: リンクをDOMに追加`);
-
-                  link.click();
-                  console.log(`👆 Debug: リンククリック実行`);
-
-                  document.body.removeChild(link);
-                  console.log(`🗑️ Debug: リンクをDOMから削除`);
-
-                  console.log(`✅ Desktop: Redirect link clicked successfully`);
-
-                  // 新しいタブでリダイレクトした後、元のタブは完了画面を表示
-                  setTimeout(() => {
-                    console.log(
-                      `🎉 Desktop: Showing completion screen in current tab`
-                    );
-                    setIsSubmitted(true);
-                    setIsSubmitting(false);
-                    setIsRedirecting(false);
-                  }, 1000);
-                } catch (error) {
-                  console.error("🚨 Desktop redirect execution failed:", error);
-                  // エラー時は新しいタブで開くことを試行
-                  try {
-                    window.open(googleReviewUrl, "_blank");
-                    console.log(`✅ Desktop Fallback: Opened in new tab`);
-                    // 成功した場合も完了画面を表示
-                    setTimeout(() => {
-                      setIsSubmitted(true);
-                      setIsSubmitting(false);
-                      setIsRedirecting(false);
-                    }, 1000);
-                  } catch (fallbackError) {
-                    console.error(
-                      "🚨 Desktop fallback redirect also failed:",
-                      fallbackError
-                    );
-                    // 全てのリダイレクトが失敗した場合も完了画面を表示
-                    setIsSubmitted(true);
-                    setIsSubmitting(false);
-                    setIsRedirecting(false);
-                  }
-                }
-              }
-            };
-
-            // 即座に実行（ユーザーアクションのコンテキスト内で）
-            console.log(`🎯 Debug: リダイレクト関数実行開始`);
-            executeRedirect();
-
-            // リダイレクト処理は非同期で実行されるため、ここではisSubmittingをfalseにしない
+            // 元のタブで直接Googleレビューページに遷移
+            window.location.href = googleReviewUrl;
             return;
           } else {
             const data = await response.json();
@@ -515,12 +328,6 @@ export default function SurveyResponsePage({
         }
       } else {
         console.log(`⚠️ GoogleレビューURLが設定されていません`);
-        console.log(`🔍 Debug: GoogleレビューURL詳細:`, {
-          googleReviewUrl,
-          type: typeof googleReviewUrl,
-          length: googleReviewUrl?.length,
-          truthyCheck: !!googleReviewUrl,
-        });
         // GoogleレビューURLがない場合は、まず回答を保存してから完了画面を表示
         setIsSubmitting(true);
         setError(null);
@@ -652,32 +459,6 @@ export default function SurveyResponsePage({
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
-      </div>
-    );
-  }
-
-  if (isRedirecting) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Card className="w-full max-w-md text-center">
-            <CardHeader>
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <CardTitle className="text-2xl">
-                Googleレビューページへ移動中...
-              </CardTitle>
-              <CardDescription>
-                アンケートの回答をありがとうございました！
-                <br />
-                Googleレビューページに移動しています。
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </motion.div>
       </div>
     );
   }
