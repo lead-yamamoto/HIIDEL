@@ -347,25 +347,34 @@ export default function SurveyResponsePage({
 
                 console.log(`✅ Redirect link clicked successfully`);
 
-                // フォールバック: 直接的なリダイレクトも試行
+                // 新しいタブでリダイレクトした後、元のタブは完了画面を表示
                 setTimeout(() => {
-                  console.log(`🔄 Fallback: Direct window.location redirect`);
-                  try {
-                    window.location.href = googleReviewUrl;
-                  } catch (error) {
-                    console.error("Direct redirect failed:", error);
-                  }
+                  console.log(`🎉 Showing completion screen in current tab`);
+                  setIsSubmitted(true);
+                  setIsSubmitting(false);
+                  setIsRedirecting(false);
                 }, 1000);
               } catch (error) {
                 console.error("🚨 Redirect execution failed:", error);
-                // エラー時は直接リダイレクトを試行
+                // エラー時は新しいタブで開くことを試行
                 try {
                   window.open(googleReviewUrl, "_blank");
+                  console.log(`✅ Fallback: Opened in new tab`);
+                  // 成功した場合も完了画面を表示
+                  setTimeout(() => {
+                    setIsSubmitted(true);
+                    setIsSubmitting(false);
+                    setIsRedirecting(false);
+                  }, 1000);
                 } catch (fallbackError) {
                   console.error(
                     "🚨 Fallback redirect also failed:",
                     fallbackError
                   );
+                  // 全てのリダイレクトが失敗した場合も完了画面を表示
+                  setIsSubmitted(true);
+                  setIsSubmitting(false);
+                  setIsRedirecting(false);
                 }
               }
             };
@@ -560,6 +569,15 @@ export default function SurveyResponsePage({
                   if (googleReviewUrl) {
                     console.log(`🔗 Manual redirect to: ${googleReviewUrl}`);
                     window.open(googleReviewUrl, "_blank");
+                    // 手動でリンクを開いた後、完了画面を表示
+                    setTimeout(() => {
+                      console.log(
+                        `🎉 Manual redirect completed, showing completion screen`
+                      );
+                      setIsSubmitted(true);
+                      setIsSubmitting(false);
+                      setIsRedirecting(false);
+                    }, 500);
                   }
                 }}
                 className="w-full"
