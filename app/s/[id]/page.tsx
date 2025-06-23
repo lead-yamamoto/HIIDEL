@@ -58,9 +58,31 @@ export default function SurveyResponsePage({
   const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     fetchSurvey();
+
+    // モバイルデバイス判定
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const mobileKeywords = [
+        "mobile",
+        "android",
+        "iphone",
+        "ipad",
+        "ipod",
+        "blackberry",
+        "windows phone",
+      ];
+      return (
+        mobileKeywords.some((keyword) => userAgent.includes(keyword)) ||
+        window.innerWidth <= 768
+      );
+    };
+
+    setIsMobile(checkMobile());
+    console.log(`📱 Device type: ${checkMobile() ? "Mobile" : "Desktop"}`);
   }, [surveyId]);
 
   const fetchSurvey = async () => {
@@ -318,63 +340,85 @@ export default function SurveyResponsePage({
             );
             setIsRedirecting(true);
 
-            // より確実なリダイレクト処理
+            // デバイス別のリダイレクト処理
             const executeRedirect = () => {
               console.log(`🚀 Executing redirect to: ${googleReviewUrl}`);
-              console.log(`🔍 Debug: リダイレクト実行開始`);
+              console.log(`📱 Device: ${isMobile ? "Mobile" : "Desktop"}`);
 
-              try {
-                // ユーザーアクションによるリダイレクトとして実行
-                const link = document.createElement("a");
-                link.href = googleReviewUrl;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-
-                console.log(`🔗 Debug: リンク要素作成完了`, {
-                  href: link.href,
-                  target: link.target,
-                });
-
-                // リンクを一時的にDOMに追加してクリック
-                document.body.appendChild(link);
-                console.log(`📝 Debug: リンクをDOMに追加`);
-
-                link.click();
-                console.log(`👆 Debug: リンククリック実行`);
-
-                document.body.removeChild(link);
-                console.log(`🗑️ Debug: リンクをDOMから削除`);
-
-                console.log(`✅ Redirect link clicked successfully`);
-
-                // 新しいタブでリダイレクトした後、元のタブは完了画面を表示
-                setTimeout(() => {
-                  console.log(`🎉 Showing completion screen in current tab`);
-                  setIsSubmitted(true);
-                  setIsSubmitting(false);
-                  setIsRedirecting(false);
-                }, 1000);
-              } catch (error) {
-                console.error("🚨 Redirect execution failed:", error);
-                // エラー時は新しいタブで開くことを試行
+              if (isMobile) {
+                // モバイル: 直接リダイレクト（同じタブ）
+                console.log(`📱 Mobile redirect: Direct navigation`);
                 try {
-                  window.open(googleReviewUrl, "_blank");
-                  console.log(`✅ Fallback: Opened in new tab`);
-                  // 成功した場合も完了画面を表示
+                  window.location.href = googleReviewUrl;
+                } catch (error) {
+                  console.error("🚨 Mobile redirect failed:", error);
+                  // フォールバック: 新しいタブで開く
+                  try {
+                    window.open(googleReviewUrl, "_blank");
+                  } catch (fallbackError) {
+                    console.error("🚨 Mobile fallback failed:", fallbackError);
+                    // 全て失敗した場合は完了画面を表示
+                    setIsSubmitted(true);
+                    setIsSubmitting(false);
+                    setIsRedirecting(false);
+                  }
+                }
+              } else {
+                // デスクトップ: 新しいタブで開く
+                console.log(`💻 Desktop redirect: New tab`);
+                try {
+                  // ユーザーアクションによるリダイレクトとして実行
+                  const link = document.createElement("a");
+                  link.href = googleReviewUrl;
+                  link.target = "_blank";
+                  link.rel = "noopener noreferrer";
+
+                  console.log(`🔗 Debug: リンク要素作成完了`, {
+                    href: link.href,
+                    target: link.target,
+                  });
+
+                  // リンクを一時的にDOMに追加してクリック
+                  document.body.appendChild(link);
+                  console.log(`📝 Debug: リンクをDOMに追加`);
+
+                  link.click();
+                  console.log(`👆 Debug: リンククリック実行`);
+
+                  document.body.removeChild(link);
+                  console.log(`🗑️ Debug: リンクをDOMから削除`);
+
+                  console.log(`✅ Redirect link clicked successfully`);
+
+                  // 新しいタブでリダイレクトした後、元のタブは完了画面を表示
                   setTimeout(() => {
+                    console.log(`🎉 Showing completion screen in current tab`);
                     setIsSubmitted(true);
                     setIsSubmitting(false);
                     setIsRedirecting(false);
                   }, 1000);
-                } catch (fallbackError) {
-                  console.error(
-                    "🚨 Fallback redirect also failed:",
-                    fallbackError
-                  );
-                  // 全てのリダイレクトが失敗した場合も完了画面を表示
-                  setIsSubmitted(true);
-                  setIsSubmitting(false);
-                  setIsRedirecting(false);
+                } catch (error) {
+                  console.error("🚨 Desktop redirect execution failed:", error);
+                  // エラー時は新しいタブで開くことを試行
+                  try {
+                    window.open(googleReviewUrl, "_blank");
+                    console.log(`✅ Fallback: Opened in new tab`);
+                    // 成功した場合も完了画面を表示
+                    setTimeout(() => {
+                      setIsSubmitted(true);
+                      setIsSubmitting(false);
+                      setIsRedirecting(false);
+                    }, 1000);
+                  } catch (fallbackError) {
+                    console.error(
+                      "🚨 Desktop fallback redirect also failed:",
+                      fallbackError
+                    );
+                    // 全てのリダイレクトが失敗した場合も完了画面を表示
+                    setIsSubmitted(true);
+                    setIsSubmitting(false);
+                    setIsRedirecting(false);
+                  }
                 }
               }
             };
@@ -559,7 +603,9 @@ export default function SurveyResponsePage({
                 <br />
                 <br />
                 <span className="text-sm text-muted-foreground">
-                  自動的に移動しない場合は、下のボタンをクリックしてください。
+                  {isMobile
+                    ? "モバイルでは同じタブで移動します。自動的に移動しない場合は、下のボタンをクリックしてください。"
+                    : "新しいタブで開きます。自動的に移動しない場合は、下のボタンをクリックしてください。"}
                 </span>
               </CardDescription>
             </CardHeader>
@@ -568,16 +614,28 @@ export default function SurveyResponsePage({
                 onClick={() => {
                   if (googleReviewUrl) {
                     console.log(`🔗 Manual redirect to: ${googleReviewUrl}`);
-                    window.open(googleReviewUrl, "_blank");
-                    // 手動でリンクを開いた後、完了画面を表示
-                    setTimeout(() => {
-                      console.log(
-                        `🎉 Manual redirect completed, showing completion screen`
-                      );
-                      setIsSubmitted(true);
-                      setIsSubmitting(false);
-                      setIsRedirecting(false);
-                    }, 500);
+                    console.log(
+                      `📱 Manual redirect device: ${
+                        isMobile ? "Mobile" : "Desktop"
+                      }`
+                    );
+
+                    if (isMobile) {
+                      // モバイル: 同じタブでリダイレクト
+                      window.location.href = googleReviewUrl;
+                    } else {
+                      // デスクトップ: 新しいタブで開く
+                      window.open(googleReviewUrl, "_blank");
+                      // 手動でリンクを開いた後、完了画面を表示
+                      setTimeout(() => {
+                        console.log(
+                          `🎉 Manual redirect completed, showing completion screen`
+                        );
+                        setIsSubmitted(true);
+                        setIsSubmitting(false);
+                        setIsRedirecting(false);
+                      }, 500);
+                    }
                   }
                 }}
                 className="w-full"
