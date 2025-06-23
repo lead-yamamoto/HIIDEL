@@ -26,6 +26,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { Badge } from "@/components/ui/badge";
@@ -569,119 +575,132 @@ export default function ReviewsPage() {
               <LoadingState message="実際のレビューを取得中..." />
             )}
 
-            {/* レビュー一覧（店舗ごとにグループ化） */}
+            {/* レビュー一覧（店舗ごとにアコーディオン） */}
             {isGoogleConnected && !isLoading && !error && (
-              <div className="space-y-6">
-                <AnimatePresence mode="wait">
-                  {Object.entries(groupedReviews).map(
-                    ([storeName, storeReviews], storeIndex) => {
-                      const stats = getStoreStats(storeReviews);
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="overflow-hidden shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      全店舗のクチコミ一覧
+                    </CardTitle>
+                    <CardDescription>
+                      店舗ごとにクチコミを確認・返信できます
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Accordion type="multiple" className="w-full">
+                      {Object.entries(groupedReviews).map(
+                        ([storeName, storeReviews], storeIndex) => {
+                          const stats = getStoreStats(storeReviews);
 
-                      return (
-                        <motion.div
-                          key={storeName}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          transition={{
-                            duration: 0.3,
-                            delay: storeIndex * 0.1,
-                          }}
-                        >
-                          <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-                            <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-700">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-primary/10 rounded-lg">
-                                    <Store className="h-5 w-5 text-primary" />
-                                  </div>
-                                  <div>
-                                    <CardTitle className="text-xl">
-                                      {storeName}
-                                    </CardTitle>
-                                    <div className="flex items-center gap-4 mt-1">
-                                      <span className="text-sm text-muted-foreground">
-                                        レビュー数: {stats.totalReviews}
-                                      </span>
-                                      {stats.totalReviews > 0 && (
-                                        <>
-                                          <span className="text-sm text-muted-foreground">
-                                            •
-                                          </span>
-                                          <div className="flex items-center gap-1">
-                                            <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                          return (
+                            <AccordionItem
+                              key={storeName}
+                              value={storeName}
+                              className="border-b last:border-b-0"
+                            >
+                              <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors">
+                                <div className="flex items-center justify-between w-full mr-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-primary/10 rounded-lg">
+                                      <Store className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <div className="text-left">
+                                      <h3 className="font-semibold text-base">
+                                        {storeName}
+                                      </h3>
+                                      <div className="flex items-center gap-3 mt-1">
+                                        <span className="text-sm text-muted-foreground">
+                                          {stats.totalReviews}件のレビュー
+                                        </span>
+                                        {stats.totalReviews > 0 && (
+                                          <>
                                             <span className="text-sm text-muted-foreground">
-                                              平均: {stats.avgRating.toFixed(1)}
+                                              •
                                             </span>
-                                          </div>
-                                        </>
-                                      )}
-                                      {stats.unrepliedCount > 0 && (
-                                        <>
-                                          <span className="text-sm text-muted-foreground">
-                                            •
-                                          </span>
-                                          <span className="text-sm text-red-600 dark:text-red-400">
-                                            未返信: {stats.unrepliedCount}件
-                                          </span>
-                                        </>
-                                      )}
+                                            <div className="flex items-center gap-1">
+                                              <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                                              <span className="text-sm text-muted-foreground">
+                                                {stats.avgRating.toFixed(1)}
+                                              </span>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                                {stats.hasSystemMessages && (
-                                  <Badge variant="outline" className="text-xs">
-                                    システム通知あり
-                                  </Badge>
-                                )}
-                              </div>
-                            </CardHeader>
-                            <CardContent className="p-4">
-                              <div className="space-y-3">
-                                {storeReviews.map((review, reviewIndex) => (
-                                  <motion.div
-                                    key={review.id || reviewIndex}
-                                    className={cn(
-                                      "p-4 rounded-lg border transition-all duration-200",
-                                      review.isSystemMessage
-                                        ? "bg-amber-50/50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800"
-                                        : "bg-card hover:shadow-md hover:border-primary/20"
+                                  <div className="flex items-center gap-2">
+                                    {stats.unrepliedCount > 0 && (
+                                      <Badge
+                                        variant="destructive"
+                                        className="text-xs"
+                                      >
+                                        未返信 {stats.unrepliedCount}件
+                                      </Badge>
                                     )}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{
-                                      duration: 0.2,
-                                      delay: reviewIndex * 0.05,
-                                    }}
-                                  >
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div className="flex items-center gap-2">
-                                        {review.reviewer.profilePhotoUrl ? (
-                                          <img
-                                            src={
-                                              review.reviewer.profilePhotoUrl
-                                            }
-                                            alt={review.reviewer.displayName}
-                                            className="w-8 h-8 rounded-full"
-                                          />
-                                        ) : (
-                                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                            <span className="text-xs font-medium text-primary">
-                                              {review.reviewer.displayName
-                                                .charAt(0)
-                                                .toUpperCase()}
-                                            </span>
-                                          </div>
-                                        )}
-                                        <div>
-                                          <p className="font-medium text-sm">
-                                            {review.reviewer.displayName}
-                                          </p>
-                                          <div className="flex items-center gap-2">
-                                            {!review.isSystemMessage && (
-                                              <div className="flex items-center">
-                                                {Array.from({ length: 5 }).map(
-                                                  (_, i) => (
+                                    {stats.hasSystemMessages && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs border-amber-500 text-amber-700"
+                                      >
+                                        システム通知
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="px-6 pb-4">
+                                <div className="space-y-3">
+                                  {storeReviews.map((review, reviewIndex) => (
+                                    <motion.div
+                                      key={review.id || reviewIndex}
+                                      className={cn(
+                                        "p-4 rounded-lg border transition-all duration-200",
+                                        review.isSystemMessage
+                                          ? "bg-amber-50/50 border-amber-200"
+                                          : "bg-card hover:shadow-md hover:border-primary/20"
+                                      )}
+                                      initial={{ opacity: 0, x: -20 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{
+                                        duration: 0.2,
+                                        delay: reviewIndex * 0.05,
+                                      }}
+                                    >
+                                      <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-2">
+                                          {review.reviewer.profilePhotoUrl ? (
+                                            <img
+                                              src={
+                                                review.reviewer.profilePhotoUrl
+                                              }
+                                              alt={review.reviewer.displayName}
+                                              className="w-8 h-8 rounded-full"
+                                            />
+                                          ) : (
+                                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                              <span className="text-xs font-medium text-primary">
+                                                {review.reviewer.displayName
+                                                  .charAt(0)
+                                                  .toUpperCase()}
+                                              </span>
+                                            </div>
+                                          )}
+                                          <div>
+                                            <p className="font-medium text-sm">
+                                              {review.reviewer.displayName}
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                              {!review.isSystemMessage && (
+                                                <div className="flex items-center">
+                                                  {Array.from({
+                                                    length: 5,
+                                                  }).map((_, i) => (
                                                     <Star
                                                       key={i}
                                                       className={cn(
@@ -691,230 +710,112 @@ export default function ReviewsPage() {
                                                           : "text-muted"
                                                       )}
                                                     />
-                                                  )
-                                                )}
-                                              </div>
-                                            )}
-                                            <span className="text-xs text-muted-foreground">
-                                              <Calendar className="h-3 w-3 inline mr-1" />
-                                              {new Date(
-                                                review.createdAt
-                                              ).toLocaleDateString()}
-                                            </span>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              <span className="text-xs text-muted-foreground">
+                                                <Calendar className="h-3 w-3 inline mr-1" />
+                                                {new Date(
+                                                  review.createdAt
+                                                ).toLocaleDateString()}
+                                              </span>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {review.isSystemMessage && (
-                                          <Badge
-                                            variant="outline"
-                                            className="text-xs border-amber-500 text-amber-700 dark:text-amber-300"
-                                          >
-                                            システム
-                                          </Badge>
-                                        )}
-                                        {!review.isSystemMessage && (
-                                          <Badge
-                                            variant={
-                                              review.replied
-                                                ? "default"
-                                                : "destructive"
-                                            }
-                                            className={cn(
-                                              "text-xs",
-                                              review.replied
-                                                ? "bg-green-500 hover:bg-green-600 text-white"
-                                                : ""
-                                            )}
-                                          >
-                                            {review.replied
-                                              ? "返信済み"
-                                              : "未返信"}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <p
-                                      className={cn(
-                                        "text-sm mb-2",
-                                        review.isSystemMessage &&
-                                          "text-amber-800 dark:text-amber-200"
-                                      )}
-                                    >
-                                      {review.comment || "(本文なし)"}
-                                    </p>
-
-                                    {/* システムメッセージの詳細 */}
-                                    {review.isSystemMessage &&
-                                      review.messageType ===
-                                        "api_limitation" && (
-                                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                                            💡 レビューアクセスについて
-                                          </h4>
-                                          <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                                            <p>
-                                              • Google Business Profile
-                                              APIは、プライバシー保護のためレビューの詳細内容へのアクセスを制限しています
-                                            </p>
-                                            <p>
-                                              •
-                                              レビューの統計情報や概要は取得できる場合があります
-                                            </p>
-                                            <p>
-                                              • 実際のレビューはGoogle Business
-                                              Profileの管理画面で確認できます
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType ===
-                                        "no_reviews_found" && (
-                                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                                          <h4 className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">
-                                            📋 確認事項
-                                          </h4>
-                                          <div className="text-xs text-gray-700 dark:text-gray-300 space-y-1">
-                                            <p>
-                                              • Google Business
-                                              Profileでレビューが公開設定になっているか確認
-                                            </p>
-                                            <p>
-                                              •
-                                              店舗にレビューが実際に投稿されているか確認
-                                            </p>
-                                            <p>
-                                              • Google Business
-                                              Profileの管理画面でレビュー設定を確認
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType ===
-                                        "no_account_access" && (
-                                        <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                                          <h4 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                                            🔒 アカウントアクセスエラー
-                                          </h4>
-                                          <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
-                                            <p>
-                                              • Google Business
-                                              Profileのアカウント情報を取得できませんでした
-                                            </p>
-                                            <p>
-                                              •
-                                              アカウントの権限設定を確認してください
-                                            </p>
-                                            <p>
-                                              • 再度Google認証を行ってください
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType ===
-                                        "account_error" && (
-                                        <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                                          <h4 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
-                                            ⚠️ 認証エラー
-                                          </h4>
-                                          <div className="text-xs text-orange-700 dark:text-orange-300 space-y-1">
-                                            <p>
-                                              •
-                                              認証トークンの更新が必要な可能性があります
-                                            </p>
-                                            <p>
-                                              • Google Business
-                                              Profileに再度ログインしてください
-                                            </p>
-                                            <p>
-                                              •
-                                              問題が続く場合はサポートにお問い合わせください
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.isSystemMessage &&
-                                      review.messageType === "fetch_error" && (
-                                        <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                                          <h4 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                                            ❌ 取得エラー
-                                          </h4>
-                                          <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
-                                            <p>
-                                              •
-                                              レビューデータの取得中にエラーが発生しました
-                                            </p>
-                                            <p>
-                                              • 一時的な問題の可能性があります
-                                            </p>
-                                            <p>
-                                              •
-                                              しばらく時間をおいて再度お試しください
-                                            </p>
-                                          </div>
-                                        </div>
-                                      )}
-
-                                    {review.replied &&
-                                      review.replyText &&
-                                      !review.isSystemMessage && (
-                                        <div className="mt-3 p-3 bg-muted/50 rounded-lg">
-                                          <p className="text-sm font-medium mb-1">
-                                            店舗からの返信:
-                                          </p>
-                                          <p className="text-sm">
-                                            {review.replyText}
-                                          </p>
-                                          {review.replyTime && (
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                              {new Date(
-                                                review.replyTime
-                                              ).toLocaleDateString()}
-                                            </p>
+                                        <div className="flex items-center gap-2">
+                                          {review.isSystemMessage && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-xs border-amber-500 text-amber-700"
+                                            >
+                                              システム
+                                            </Badge>
+                                          )}
+                                          {!review.isSystemMessage && (
+                                            <Badge
+                                              variant={
+                                                review.replied
+                                                  ? "default"
+                                                  : "destructive"
+                                              }
+                                              className={cn(
+                                                "text-xs",
+                                                review.replied
+                                                  ? "bg-green-500 hover:bg-green-600 text-white"
+                                                  : ""
+                                              )}
+                                            >
+                                              {review.replied
+                                                ? "返信済み"
+                                                : "未返信"}
+                                            </Badge>
                                           )}
                                         </div>
-                                      )}
-
-                                    {!review.isSystemMessage && (
-                                      <div className="flex justify-end mt-3">
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="text-primary hover:text-primary/80 hover:bg-muted"
-                                          onClick={() =>
-                                            openReplyDialog(review)
-                                          }
-                                        >
-                                          <span className="flex items-center">
-                                            {review.replied
-                                              ? "返信を編集"
-                                              : "返信する"}{" "}
-                                            <ChevronRight className="h-4 w-4 ml-1" />
-                                          </span>
-                                        </Button>
                                       </div>
-                                    )}
-                                  </motion.div>
-                                ))}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-                      );
-                    }
-                  )}
-                </AnimatePresence>
+
+                                      <p
+                                        className={cn(
+                                          "text-sm mb-2",
+                                          review.isSystemMessage &&
+                                            "text-amber-800"
+                                        )}
+                                      >
+                                        {review.comment || "(本文なし)"}
+                                      </p>
+
+                                      {review.replied &&
+                                        review.replyText &&
+                                        !review.isSystemMessage && (
+                                          <div className="mt-3 p-3 bg-muted/50 rounded-lg">
+                                            <p className="text-sm font-medium mb-1">
+                                              店舗からの返信:
+                                            </p>
+                                            <p className="text-sm">
+                                              {review.replyText}
+                                            </p>
+                                            {review.replyTime && (
+                                              <p className="text-xs text-muted-foreground mt-1">
+                                                {new Date(
+                                                  review.replyTime
+                                                ).toLocaleDateString()}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+
+                                      {!review.isSystemMessage && (
+                                        <div className="flex justify-end mt-3">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-primary hover:text-primary/80 hover:bg-muted"
+                                            onClick={() =>
+                                              openReplyDialog(review)
+                                            }
+                                          >
+                                            <span className="flex items-center">
+                                              {review.replied
+                                                ? "返信を編集"
+                                                : "返信する"}{" "}
+                                              <ChevronRight className="h-4 w-4 ml-1" />
+                                            </span>
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          );
+                        }
+                      )}
+                    </Accordion>
+                  </CardContent>
+                </Card>
 
                 {filteredReviews.length === 0 && (
-                  <Card>
+                  <Card className="mt-6">
                     <CardContent className="py-12 text-center">
                       <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground opacity-50 mb-3" />
                       <h3 className="text-lg font-medium mb-1">
@@ -934,7 +835,7 @@ export default function ReviewsPage() {
                     </CardContent>
                   </Card>
                 )}
-              </div>
+              </motion.div>
             )}
           </div>
         </div>

@@ -691,6 +691,9 @@ export default function AnalyticsPage() {
                               tickLine={false}
                               axisLine={false}
                               tickMargin={8}
+                              tickFormatter={(value) =>
+                                Math.round(value).toString()
+                              }
                             />
                             <ChartTooltip
                               cursor={false}
@@ -773,6 +776,9 @@ export default function AnalyticsPage() {
                               tickLine={false}
                               axisLine={false}
                               tickMargin={8}
+                              tickFormatter={(value) =>
+                                Math.round(value).toString()
+                              }
                             />
                             <ChartTooltip
                               cursor={false}
@@ -891,6 +897,7 @@ export default function AnalyticsPage() {
                           />
                           <YAxis
                             domain={[0, 5]}
+                            ticks={[0, 1, 2, 3, 4, 5]}
                             tickLine={false}
                             axisLine={false}
                             tickMargin={8}
@@ -1008,6 +1015,9 @@ export default function AnalyticsPage() {
                           tickLine={false}
                           axisLine={false}
                           tickMargin={8}
+                          tickFormatter={(value) =>
+                            Math.round(value).toString()
+                          }
                         />
                         <ChartTooltip
                           cursor={false}
@@ -1059,6 +1069,9 @@ export default function AnalyticsPage() {
                           tickLine={false}
                           axisLine={false}
                           tickMargin={8}
+                          tickFormatter={(value) =>
+                            Math.round(value).toString()
+                          }
                         />
                         <ChartTooltip
                           cursor={false}
