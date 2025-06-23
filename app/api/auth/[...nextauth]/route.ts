@@ -37,11 +37,32 @@ async function loadUsers(): Promise<any[]> {
         stores: [],
       },
     ];
+
+    // 初期データをファイルに保存
+    try {
+      await fs.writeFile(
+        USERS_DATA_FILE_PATH,
+        JSON.stringify(initialData, null, 2)
+      );
+    } catch (writeError) {
+      console.error("初期ユーザーデータの保存に失敗:", writeError);
+    }
+
     return initialData;
   }
 }
 
-// プロバイダー配列を動的に構築
+// ユーザーを保存
+async function saveUsers(users: any[]): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(USERS_DATA_FILE_PATH), { recursive: true });
+    await fs.writeFile(USERS_DATA_FILE_PATH, JSON.stringify(users, null, 2));
+  } catch (error) {
+    console.error("ユーザーデータの保存に失敗:", error);
+  }
+}
+
+// プロバイダー設定
 const providers: any[] = [
   CredentialsProvider({
     name: "credentials",
@@ -50,56 +71,50 @@ const providers: any[] = [
       password: { label: "Password", type: "password" },
     },
     async authorize(credentials) {
-      console.log("🔐 [NextAuth] authorize function called");
-      console.log("📧 Email:", credentials?.email);
-      console.log("🔑 Password provided:", !!credentials?.password);
-
       if (!credentials?.email || !credentials?.password) {
         console.log("❌ Missing credentials");
         return null;
       }
 
       try {
-        // ファイルからユーザーデータを読み込み
+        console.log("🔍 Loading users for authentication...");
         const users = await loadUsers();
-        console.log("👥 Loaded users count:", users.length);
+        const user = users.find(
+          (u) => u.email.toLowerCase() === credentials.email.toLowerCase()
+        );
 
-        console.log("👤 Looking for user:", credentials.email);
-
-        const user = users.find((u) => u.email === credentials.email);
-
-        if (user) {
-          console.log("✅ User found:", user.email);
-          console.log("🔍 Checking password...");
-
-          const isPasswordValid = await compare(
-            credentials.password,
-            user.password
-          );
-
-          console.log("🔐 Password valid:", isPasswordValid);
-
-          if (isPasswordValid) {
-            console.log("🎉 Login successful for user:", user.email);
-            const userResponse = {
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              role: user.role,
-              companyName: user.companyName,
-            };
-            console.log("📤 Returning user:", userResponse);
-            return userResponse;
-          } else {
-            console.log("❌ Invalid password for user:", user.email);
-          }
-        } else {
+        if (!user) {
           console.log("❌ User not found:", credentials.email);
+          return null;
         }
 
-        return null;
+        if (!user.isActive) {
+          console.log("❌ User account is inactive:", credentials.email);
+          return null;
+        }
+
+        const isPasswordValid = await compare(
+          credentials.password,
+          user.password
+        );
+
+        if (!isPasswordValid) {
+          console.log("❌ Invalid password for user:", credentials.email);
+          return null;
+        }
+
+        console.log("✅ User authenticated successfully:", user.email);
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          companyName: user.companyName,
+          stores: user.stores || [],
+        };
       } catch (error) {
-        console.error("💥 Auth error:", error);
+        console.error("💥 Authentication error:", error);
         return null;
       }
     },
@@ -126,13 +141,13 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
-const authOptions: NextAuthOptions = {
+export const authOptions: NextAuthOptions = {
   providers,
   callbacks: {
     async jwt({ token, user, account }) {
       console.log("🔑 [NextAuth] jwt callback called");
       if (user) {
-        console.log("👤 Adding user to token:", user);
+        console.log("👤 Adding user to token:", user.email);
         token.role = user.role;
         token.companyName = user.companyName;
         token.stores = user.stores || [];
@@ -162,18 +177,47 @@ const authOptions: NextAuthOptions = {
       return session;
     },
     async signIn({ user, account, profile }) {
-      console.log("🚪 [NextAuth] signIn callback called");
-      console.log("👤 User:", user?.email);
-      console.log("🔗 Account provider:", account?.provider);
-
       if (account?.provider === "google") {
-        // Google認証時の処理
-        // 実際の実装ではユーザーをデータベースに保存
-        console.log("🔍 Google sign in:", { user, profile });
-        return true;
-      }
+        try {
+          console.log("🔍 Google sign-in attempt:", profile?.email);
+          const users = await loadUsers();
+          let existingUser = users.find(
+            (u) => u.email.toLowerCase() === profile?.email?.toLowerCase()
+          );
 
-      console.log("✅ Sign in approved");
+          if (!existingUser) {
+            // 新規Googleユーザーを作成
+            const newUser = {
+              id: Date.now().toString(),
+              email: profile?.email || "",
+              name: profile?.name || "",
+              role: "owner",
+              companyName: "",
+              phoneNumber: "",
+              createdAt: new Date().toISOString(),
+              isActive: true,
+              subscription: {
+                plan: "trial",
+                startDate: new Date().toISOString(),
+                endDate: new Date(
+                  Date.now() + 30 * 24 * 60 * 60 * 1000
+                ).toISOString(),
+              },
+              stores: [],
+              googleId: profile?.sub,
+            };
+
+            users.push(newUser);
+            await saveUsers(users);
+            console.log("✅ New Google user created:", newUser.email);
+          } else {
+            console.log("✅ Existing Google user found:", existingUser.email);
+          }
+        } catch (error) {
+          console.error("💥 Google sign-in error:", error);
+          return false;
+        }
+      }
       return true;
     },
   },
@@ -188,7 +232,7 @@ const authOptions: NextAuthOptions = {
   secret:
     process.env.NEXTAUTH_SECRET ||
     "fallback-secret-for-development-only-please-change-in-production",
-  debug: true,
+  debug: process.env.NODE_ENV === "development",
   logger: {
     error(code, metadata) {
       console.error(`🚨 [NextAuth Error]: ${code}`, metadata);
@@ -197,7 +241,9 @@ const authOptions: NextAuthOptions = {
       console.warn(`⚠️ [NextAuth Warning]: ${code}`);
     },
     debug(code, metadata) {
-      console.debug(`🐛 [NextAuth Debug]: ${code}`, metadata);
+      if (process.env.NODE_ENV === "development") {
+        console.debug(`🐛 [NextAuth Debug]: ${code}`, metadata);
+      }
     },
   },
 };

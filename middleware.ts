@@ -15,8 +15,17 @@ export const config = {
   matcher: [
     /*
      * 除外パターン: 公開アクセス可能なパス
+     * - api/auth: NextAuth.js認証API
+     * - api/google: Google認証API
+     * - api/analytics: 分析API（公開）
+     * - api/surveys: アンケートAPI（公開）
+     * - api/stores: 店舗API（公開）
+     * - s: アンケート回答ページ（公開）
+     * - auth: 認証ページ
+     * - _next: Next.jsシステムファイル
+     * - 静的ファイル
      * 残りのパスに認証を適用
      */
-    "/((?!api/auth|api/google|api/analytics|api/surveys|api/stores|s|auth|_next|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)).*)",
+    "/((?!api/auth|api/google|api/analytics|api/surveys|api/stores|s/|auth|_next|favicon\\.ico).*)",
   ],
 };

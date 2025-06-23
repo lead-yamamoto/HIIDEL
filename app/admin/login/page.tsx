@@ -51,17 +51,8 @@ export default function AdminLoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // 管理者セッション情報をローカルストレージに保存
-        localStorage.setItem(
-          "adminAuth",
-          JSON.stringify({
-            token: data.token,
-            user: data.user,
-            timestamp: new Date().toISOString(),
-          })
-        );
-
-        // 管理者画面にリダイレクト
+        console.log("✅ Admin login successful");
+        // 管理者画面にリダイレクト（Cookieは自動的に設定される）
         router.push("/admin");
       } else {
         setError(data.error || "ログインに失敗しました");

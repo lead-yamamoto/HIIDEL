@@ -1,139 +1,126 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
+import { compare, hash } from "bcryptjs";
+import { SignJWT, jwtVerify } from "jose";
 
-// 管理者アカウント定義（実際の本番環境では環境変数やデータベースで管理）
+// 管理者アカウント（本番環境では環境変数またはデータベースに保存）
 const ADMIN_ACCOUNTS = [
   {
-    id: "admin_001",
-    username: "admin",
-    password: "admin123", // プレーンテキスト（デモ用）
-    name: "システム管理者",
+    id: "admin-1",
+    username: "hiidel_admin",
+    name: "HIIDEL管理者",
     email: "admin@hiidel.com",
-    role: "admin",
-    permissions: ["all"],
-    createdAt: "2024-01-01T00:00:00.000Z",
-  },
-  {
-    id: "admin_002",
-    username: "superadmin",
-    password: "super123", // プレーンテキスト（デモ用）
-    name: "スーパー管理者",
-    email: "superadmin@hiidel.com",
-    role: "superadmin",
-    permissions: ["all", "system"],
-    createdAt: "2024-01-01T00:00:00.000Z",
+    // パスワード: "hiidel_admin_2024" (ハッシュ化済み)
+    password: "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewU5GdkcAg0Bzo8.",
+    role: "super_admin",
+    permissions: [
+      "users:read",
+      "users:write",
+      "users:delete",
+      "analytics:read",
+      "system:manage",
+    ],
   },
 ];
 
-const SECRET_KEY =
-  process.env.NEXTAUTH_SECRET || "admin-secret-key-hiidel-2024";
+// JWT秘密鍵
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.NEXTAUTH_SECRET || "hiidel-admin-secret-key-change-in-production"
+);
 
-// 簡易トークン生成
-function generateToken(adminData: any): string {
-  const payload = {
-    adminId: adminData.id,
-    username: adminData.username,
-    role: adminData.role,
-    permissions: adminData.permissions,
-    timestamp: Date.now(),
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24時間
-  };
+// JWTトークン生成
+async function generateToken(adminId: string): Promise<string> {
+  const jwt = await new SignJWT({ adminId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("24h")
+    .sign(JWT_SECRET);
 
-  const payloadStr = JSON.stringify(payload);
-  const token = Buffer.from(payloadStr).toString("base64");
-  const signature = createHash("sha256")
-    .update(token + SECRET_KEY)
-    .digest("hex");
-
-  return `${token}.${signature}`;
+  return jwt;
 }
 
-// トークン検証
-function verifyToken(token: string): any {
+// JWTトークン検証
+async function verifyToken(token: string): Promise<{ adminId: string } | null> {
   try {
-    const [payload, signature] = token.split(".");
-    if (!payload || !signature) return null;
-
-    // 署名検証
-    const expectedSignature = createHash("sha256")
-      .update(payload + SECRET_KEY)
-      .digest("hex");
-    if (signature !== expectedSignature) return null;
-
-    // ペイロードデコード
-    const decoded = JSON.parse(Buffer.from(payload, "base64").toString());
-
-    // 有効期限チェック
-    if (decoded.expiresAt < Date.now()) return null;
-
-    return decoded;
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as { adminId: string };
   } catch (error) {
+    console.error("JWT検証エラー:", error);
     return null;
   }
 }
 
+// 管理者ログインAPI
 export async function POST(request: NextRequest) {
   try {
     const { username, password } = await request.json();
 
-    // 入力値チェック
+    console.log("🔐 Admin login attempt:", username);
+
+    // 入力値検証
     if (!username || !password) {
       return NextResponse.json(
-        { error: "ユーザー名とパスワードを入力してください" },
+        { error: "ユーザー名とパスワードが必要です" },
         { status: 400 }
       );
     }
 
-    // 管理者アカウントを検索
-    const admin = ADMIN_ACCOUNTS.find((acc) => acc.username === username);
-
-    if (!admin) {
-      return NextResponse.json(
-        { error: "管理者アカウントが見つかりません" },
-        { status: 401 }
-      );
-    }
-
-    // パスワード検証（プレーンテキスト比較）
-    if (password !== admin.password) {
-      return NextResponse.json(
-        { error: "パスワードが正しくありません" },
-        { status: 401 }
-      );
-    }
-
-    // トークン生成
-    const token = generateToken(admin);
-
-    // ログイン成功レスポンス
-    const adminUser = {
-      id: admin.id,
-      username: admin.username,
-      name: admin.name,
-      email: admin.email,
-      role: admin.role,
-      permissions: admin.permissions,
-    };
-
-    // ログ記録
-    console.log(
-      `[ADMIN LOGIN] ${admin.username} (${
-        admin.name
-      }) logged in at ${new Date().toISOString()}`
+    // 管理者アカウント検索
+    const admin = ADMIN_ACCOUNTS.find(
+      (acc) => acc.username === username || acc.email === username
     );
 
-    return NextResponse.json({
+    if (!admin) {
+      console.log("❌ Admin account not found:", username);
+      return NextResponse.json(
+        { error: "ユーザー名またはパスワードが正しくありません" },
+        { status: 401 }
+      );
+    }
+
+    // パスワード検証
+    const isPasswordValid = await compare(password, admin.password);
+
+    if (!isPasswordValid) {
+      console.log("❌ Invalid password for admin:", username);
+      return NextResponse.json(
+        { error: "ユーザー名またはパスワードが正しくありません" },
+        { status: 401 }
+      );
+    }
+
+    // JWTトークン生成
+    const token = await generateToken(admin.id);
+
+    console.log("✅ Admin login successful:", admin.username);
+
+    // セキュアなレスポンス
+    const response = NextResponse.json({
       success: true,
-      message: "管理者ログインに成功しました",
-      token,
-      user: adminUser,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      user: {
+        id: admin.id,
+        username: admin.username,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        permissions: admin.permissions,
+      },
     });
+
+    // HTTPOnlyクッキーでトークンを設定
+    response.cookies.set("admin_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60, // 24時間
+      path: "/",
+      sameSite: "strict",
+    });
+
+    return response;
   } catch (error) {
     console.error("管理者ログインエラー:", error);
     return NextResponse.json(
       {
-        error: "認証中にエラーが発生しました",
+        error: "ログイン処理中にエラーが発生しました",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
@@ -144,17 +131,17 @@ export async function POST(request: NextRequest) {
 // 管理者セッション検証API
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
+    // Cookieからトークンを取得
+    const token = request.cookies.get("admin_token")?.value;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!token) {
       return NextResponse.json(
         { error: "認証トークンが必要です" },
         { status: 401 }
       );
     }
 
-    const token = authHeader.split(" ")[1];
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
 
     if (!decoded) {
       return NextResponse.json(
@@ -191,6 +178,29 @@ export async function GET(request: NextRequest) {
       {
         error: "セッション検証中にエラーが発生しました",
         details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// 管理者ログアウトAPI
+export async function DELETE(request: NextRequest) {
+  try {
+    const response = NextResponse.json({
+      success: true,
+      message: "ログアウトしました",
+    });
+
+    // Cookieを削除
+    response.cookies.delete("admin_token");
+
+    return response;
+  } catch (error) {
+    console.error("ログアウトエラー:", error);
+    return NextResponse.json(
+      {
+        error: "ログアウト処理中にエラーが発生しました",
       },
       { status: 500 }
     );

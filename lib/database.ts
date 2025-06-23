@@ -213,13 +213,15 @@ class Database {
     {
       id: "1",
       email: "demo@hiidel.com",
-      name: "Demo User",
+      name: "デモユーザー",
       role: "owner",
-      companyName: "HIIDEL株式会社",
+      companyName: "デモ株式会社",
       isGoogleConnected: false,
       createdAt: new Date(),
     },
   ];
+
+  private defaultStores: Store[] = [];
 
   constructor() {
     this.redis = new RedisClient();
@@ -612,49 +614,97 @@ class Database {
     return updatedStore;
   }
 
+  // 🔧 新規追加: 店舗削除機能の改善
   async deleteStore(storeId: string, userId: string): Promise<boolean> {
-    const allStores = await this.getData<Store>(
-      KEYS.STORES,
-      "__HIIDEL_STORES__",
-      []
-    );
-    const initialLength = allStores.length;
+    try {
+      console.log(`🗑️ Deleting store: ${storeId} for user: ${userId}`);
 
-    const updatedStores = allStores.filter(
-      (store) => !(store.id === storeId && store.userId === userId)
-    );
+      const stores = await this.getData<Store>(
+        KEYS.STORES,
+        "__HIIDEL_STORES__",
+        this.defaultStores
+      );
 
-    if (updatedStores.length < initialLength) {
-      await this.setData(KEYS.STORES, "__HIIDEL_STORES__", updatedStores);
+      const storeIndex = stores.findIndex(
+        (store) => store.id === storeId && store.userId === userId
+      );
+
+      if (storeIndex === -1) {
+        console.log(`❌ Store not found or not owned by user: ${storeId}`);
+        return false;
+      }
+
+      // 店舗を削除
+      stores.splice(storeIndex, 1);
+      await this.setData(KEYS.STORES, "__HIIDEL_STORES__", stores);
 
       // 関連データも削除
-      const [qrCodes, reviews, surveys] = await Promise.all([
-        this.getData<QRCode>(KEYS.QR_CODES, "__HIIDEL_QR_CODES__", []),
-        this.getData<Review>(KEYS.REVIEWS, "__HIIDEL_REVIEWS__", []),
-        this.getData<Survey>(KEYS.SURVEYS, "__HIIDEL_SURVEYS__", []),
-      ]);
+      await this.deleteRelatedStoreData(storeId);
 
-      await Promise.all([
-        this.setData(
-          KEYS.QR_CODES,
-          "__HIIDEL_QR_CODES__",
-          qrCodes.filter((qr) => qr.storeId !== storeId)
-        ),
-        this.setData(
-          KEYS.REVIEWS,
-          "__HIIDEL_REVIEWS__",
-          reviews.filter((review) => review.storeId !== storeId)
-        ),
-        this.setData(
-          KEYS.SURVEYS,
-          "__HIIDEL_SURVEYS__",
-          surveys.filter((survey) => survey.storeId !== storeId)
-        ),
-      ]);
-
+      console.log(`✅ Successfully deleted store: ${storeId}`);
       return true;
+    } catch (error) {
+      console.error(`❌ Error deleting store ${storeId}:`, error);
+      return false;
     }
-    return false;
+  }
+
+  // 関連データ削除のヘルパーメソッド
+  private async deleteRelatedStoreData(storeId: string): Promise<void> {
+    try {
+      // アンケートを削除
+      const surveys = await this.getData<Survey>(
+        KEYS.SURVEYS,
+        "__HIIDEL_SURVEYS__",
+        []
+      );
+      const filteredSurveys = surveys.filter(
+        (survey) => survey.storeId !== storeId
+      );
+      await this.setData(KEYS.SURVEYS, "__HIIDEL_SURVEYS__", filteredSurveys);
+
+      // レビューを削除
+      const reviews = await this.getData<Review>(
+        KEYS.REVIEWS,
+        "__HIIDEL_REVIEWS__",
+        []
+      );
+      const filteredReviews = reviews.filter(
+        (review) => review.storeId !== storeId
+      );
+      await this.setData(KEYS.REVIEWS, "__HIIDEL_REVIEWS__", filteredReviews);
+
+      // QRコードを削除
+      const qrCodes = await this.getData<QRCode>(
+        KEYS.QR_CODES,
+        "__HIIDEL_QR_CODES__",
+        []
+      );
+      const filteredQRCodes = qrCodes.filter((qr) => qr.storeId !== storeId);
+      await this.setData(KEYS.QR_CODES, "__HIIDEL_QR_CODES__", filteredQRCodes);
+
+      // アンケート回答を削除
+      const responses = await this.getData<SurveyResponse>(
+        KEYS.SURVEY_RESPONSES,
+        "__HIIDEL_SURVEY_RESPONSES__",
+        []
+      );
+      const filteredResponses = responses.filter(
+        (response) => response.storeId !== storeId
+      );
+      await this.setData(
+        KEYS.SURVEY_RESPONSES,
+        "__HIIDEL_SURVEY_RESPONSES__",
+        filteredResponses
+      );
+
+      console.log(`✅ Deleted all related data for store: ${storeId}`);
+    } catch (error) {
+      console.error(
+        `❌ Error deleting related data for store ${storeId}:`,
+        error
+      );
+    }
   }
 
   // QRコード管理
@@ -866,27 +916,125 @@ class Database {
     surveyId: string,
     userId: string
   ): Promise<SurveyResponse[]> {
-    const allResponses = await this.getData<SurveyResponse>(
+    console.log(`📋 Getting survey responses for survey: ${surveyId}`);
+
+    const responses = await this.getData<SurveyResponse>(
       KEYS.SURVEY_RESPONSES,
       "__HIIDEL_SURVEY_RESPONSES__",
       []
     );
-    const allSurveys = await this.getData<Survey>(
-      KEYS.SURVEYS,
-      "__HIIDEL_SURVEYS__",
-      []
+
+    const userResponses = responses.filter(
+      (response) => response.surveyId === surveyId
     );
 
-    const responses = allResponses.filter(
-      (response) =>
-        response.surveyId === surveyId &&
-        allSurveys.find((s) => s.id === surveyId && s.userId === userId)
-    );
+    // ユーザーのアンケートかどうかを確認
+    const surveys = await this.getSurveys(userId);
+    const survey = surveys.find((s) => s.id === surveyId);
+
+    if (!survey) {
+      console.log(`❌ Survey not found or not owned by user: ${surveyId}`);
+      return [];
+    }
 
     console.log(
-      `📊 Found ${responses.length} responses for survey ${surveyId}`
+      `✅ Found ${userResponses.length} responses for survey: ${surveyId}`
     );
-    return responses;
+    return userResponses;
+  }
+
+  // 🔧 新規追加: アンケート削除機能
+  async deleteSurvey(surveyId: string, userId: string): Promise<boolean> {
+    try {
+      console.log(`🗑️ Deleting survey: ${surveyId} for user: ${userId}`);
+
+      // アンケート一覧を取得
+      const surveys = await this.getData<Survey>(
+        KEYS.SURVEYS,
+        "__HIIDEL_SURVEYS__",
+        []
+      );
+
+      // 削除対象のアンケートを検索
+      const surveyIndex = surveys.findIndex(
+        (survey) => survey.id === surveyId && survey.userId === userId
+      );
+
+      if (surveyIndex === -1) {
+        console.log(`❌ Survey not found or not owned by user: ${surveyId}`);
+        return false;
+      }
+
+      // アンケートを削除
+      surveys.splice(surveyIndex, 1);
+      await this.setData(KEYS.SURVEYS, "__HIIDEL_SURVEYS__", surveys);
+
+      // 関連する回答も削除
+      const responses = await this.getData<SurveyResponse>(
+        KEYS.SURVEY_RESPONSES,
+        "__HIIDEL_SURVEY_RESPONSES__",
+        []
+      );
+
+      const filteredResponses = responses.filter(
+        (response) => response.surveyId !== surveyId
+      );
+
+      await this.setData(
+        KEYS.SURVEY_RESPONSES,
+        "__HIIDEL_SURVEY_RESPONSES__",
+        filteredResponses
+      );
+
+      console.log(`✅ Successfully deleted survey: ${surveyId}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error deleting survey ${surveyId}:`, error);
+      return false;
+    }
+  }
+
+  // 🔧 新規追加: アンケート更新機能
+  async updateSurvey(
+    surveyId: string,
+    userId: string,
+    updateData: Partial<Survey>
+  ): Promise<Survey | null> {
+    try {
+      console.log(`📝 Updating survey: ${surveyId} for user: ${userId}`);
+
+      const surveys = await this.getData<Survey>(
+        KEYS.SURVEYS,
+        "__HIIDEL_SURVEYS__",
+        []
+      );
+
+      const surveyIndex = surveys.findIndex(
+        (survey) => survey.id === surveyId && survey.userId === userId
+      );
+
+      if (surveyIndex === -1) {
+        console.log(`❌ Survey not found or not owned by user: ${surveyId}`);
+        return null;
+      }
+
+      // アンケートを更新
+      const updatedSurvey = {
+        ...surveys[surveyIndex],
+        ...updateData,
+        id: surveyId, // IDは変更不可
+        userId: userId, // ユーザーIDは変更不可
+      };
+
+      surveys[surveyIndex] = updatedSurvey;
+      await this.setData(KEYS.SURVEYS, "__HIIDEL_SURVEYS__", surveys);
+
+      console.log(`✅ Successfully updated survey: ${surveyId}`);
+      return updatedSurvey;
+    } catch (error) {
+      console.error(`❌ Error updating survey ${surveyId}:`, error);
+      return null;
+    }
   }
 
   // 分析データ

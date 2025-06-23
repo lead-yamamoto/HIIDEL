@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth/next";
 import { db } from "@/lib/database";
 
 async function getAuthenticatedUserId(): Promise<string | null> {
-  // セッション管理は簡素化
-  return "1"; // demo@hiidel.comのユーザーID
+  try {
+    const session = await getServerSession();
+    if (session?.user?.id) {
+      return session.user.id;
+    }
+    // フォールバック: デモユーザー
+    return "1";
+  } catch (error) {
+    console.error("認証エラー:", error);
+    return "1"; // フォールバック
+  }
 }
 
 // 星評価を数値に変換する関数

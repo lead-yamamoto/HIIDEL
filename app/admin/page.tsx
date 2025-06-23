@@ -163,29 +163,21 @@ export default function AdminPage() {
     setFilteredUsers(filtered);
   }, [users, searchTerm, statusFilter, planFilter]);
 
-  const checkAdminAuth = () => {
+  const checkAdminAuth = async () => {
     try {
-      const adminAuth = localStorage.getItem("adminAuth");
+      const response = await fetch("/api/admin/auth/login", {
+        method: "GET",
+        credentials: "include", // Cookieを含める
+      });
 
-      if (!adminAuth) {
+      if (response.ok) {
+        const data = await response.json();
+        setAdminUser(data.user);
+        setAuthCheckComplete(true);
+      } else {
         setAuthCheckComplete(true);
         router.push("/admin/login");
-        return;
       }
-
-      const authData = JSON.parse(adminAuth);
-      const expiryTime =
-        new Date(authData.timestamp).getTime() + 24 * 60 * 60 * 1000;
-
-      if (Date.now() > expiryTime) {
-        localStorage.removeItem("adminAuth");
-        setAuthCheckComplete(true);
-        router.push("/admin/login");
-        return;
-      }
-
-      setAdminUser(authData.user);
-      setAuthCheckComplete(true);
     } catch (error) {
       console.error("認証チェックエラー:", error);
       setAuthCheckComplete(true);
@@ -193,9 +185,17 @@ export default function AdminPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminAuth");
-    router.push("/admin/login");
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin/auth/login", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      router.push("/admin/login");
+    } catch (error) {
+      console.error("ログアウトエラー:", error);
+      router.push("/admin/login");
+    }
   };
 
   const fetchAdminData = async () => {

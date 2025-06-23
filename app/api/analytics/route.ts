@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
 import { db } from "@/lib/database";
 import { cookies } from "next/headers";
 
 async function getAuthenticatedUserId(): Promise<string | null> {
-  // セッション管理は簡素化
-  return "1"; // demo@hiidel.comのユーザーID
+  try {
+    const session = await getServerSession();
+    if (session?.user?.id) {
+      return session.user.id;
+    }
+    // フォールバック: デモユーザー
+    return "1";
+  } catch (error) {
+    console.error("認証エラー:", error);
+    return "1"; // フォールバック
+  }
 }
 
 export async function GET(request: NextRequest) {
