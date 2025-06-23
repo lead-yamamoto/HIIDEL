@@ -14,19 +14,25 @@ const providers: any[] = [
       password: { label: "Password", type: "password" },
     },
     async authorize(credentials) {
+      console.log("🔍 [NextAuth] authorize called with:", credentials?.email);
+
       if (!credentials?.email || !credentials?.password) {
-        console.log("❌ Missing credentials");
+        console.log("❌ [NextAuth] Missing credentials");
         return null;
       }
 
       try {
-        console.log("🔍 Authenticating user with Redis database...");
+        console.log("🔍 [NextAuth] Authenticating user with Redis database...");
         await db.ensureInitialized();
 
         const user = await db.getUser(credentials.email);
+        console.log(
+          "🔍 [NextAuth] User from database:",
+          user ? { id: user.id, email: user.email } : null
+        );
 
         if (!user) {
-          console.log("❌ User not found:", credentials.email);
+          console.log("❌ [NextAuth] User not found:", credentials.email);
           return null;
         }
 
@@ -35,20 +41,25 @@ const providers: any[] = [
           credentials.email === "demo@hiidel.com" &&
           credentials.password === "demo123"
         ) {
-          console.log("✅ Demo user authenticated successfully");
-          return {
+          console.log("✅ [NextAuth] Demo user authenticated successfully");
+          const authUser = {
             id: user.id, // データベースからの固定ID
             email: user.email,
             name: user.name,
             role: user.role,
             companyName: user.companyName,
           };
+          console.log("✅ [NextAuth] Returning auth user:", authUser);
+          return authUser;
         }
 
-        console.log("❌ Invalid password for user:", credentials.email);
+        console.log(
+          "❌ [NextAuth] Invalid password for user:",
+          credentials.email
+        );
         return null;
       } catch (error) {
-        console.error("💥 Authentication error:", error);
+        console.error("💥 [NextAuth] Authentication error:", error);
         return null;
       }
     },
@@ -80,26 +91,32 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, account }) {
       console.log("🔑 [NextAuth] jwt callback called");
-      console.log("🔍 Token before modification:", {
+      console.log("🔍 [NextAuth] Token before modification:", {
         sub: token.sub,
         id: token.id,
+        email: token.email,
+        hasUser: !!user,
       });
 
       if (user) {
-        console.log(
-          "👤 Adding user to token:",
-          user.email,
-          "with ID:",
-          user.id
-        );
+        console.log("👤 [NextAuth] Adding user to token:", {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        });
+
         // カスタムIDを使用（NextAuth.jsが自動生成するIDを上書き）
         token.sub = user.id; // NextAuth.jsの標準フィールド
         token.id = user.id; // カスタムフィールド
+        token.email = user.email;
+        token.name = user.name;
         token.role = user.role;
         token.companyName = user.companyName;
       }
 
       if (account?.provider === "google") {
+        console.log("🔍 [NextAuth] Google account detected, saving tokens");
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
 
@@ -118,62 +135,86 @@ export const authOptions: NextAuthOptions = {
             });
 
             await db.updateUserGoogleConnection(user.email, true);
-            console.log("✅ Google tokens saved to database");
+            console.log("✅ [NextAuth] Google tokens saved to database");
           } catch (error) {
-            console.error("❌ Error saving Google tokens:", error);
+            console.error("❌ [NextAuth] Error saving Google tokens:", error);
           }
         }
       }
 
-      console.log("🔍 Token after modification:", {
+      console.log("🔍 [NextAuth] Token after modification:", {
         sub: token.sub,
         id: token.id,
+        email: token.email,
+        role: token.role,
       });
       return token;
     },
     async session({ session, token }) {
       console.log("📝 [NextAuth] session callback called");
-      console.log("🔍 Token in session callback:", {
+      console.log("🔍 [NextAuth] Token in session callback:", {
         sub: token.sub,
         id: token.id,
+        email: token.email,
+        role: token.role,
       });
 
       if (session.user && token) {
-        console.log("👤 Adding token data to session");
+        console.log("👤 [NextAuth] Adding token data to session");
         // NextAuth.jsの標準フィールド（token.sub）を使用
         session.user.id = token.sub!;
+        session.user.email = token.email as string;
+        session.user.name = token.name as string;
         session.user.role = token.role as string;
         session.user.companyName = token.companyName as string;
         session.accessToken = token.accessToken as string;
       }
 
-      console.log("✨ Final session:", {
-        user: session.user?.email,
-        id: session.user?.id,
-        role: session.user?.role,
+      console.log("✨ [NextAuth] Final session:", {
+        user: session.user
+          ? {
+              id: session.user.id,
+              email: session.user.email,
+              name: session.user.name,
+              role: session.user.role,
+            }
+          : null,
+        hasAccessToken: !!session.accessToken,
       });
       return session;
     },
     async signIn({ user, account, profile }) {
+      console.log("🔐 [NextAuth] signIn callback called");
+      console.log("🔍 [NextAuth] SignIn data:", {
+        provider: account?.provider,
+        userEmail: user?.email,
+        profileEmail: profile?.email,
+      });
+
       if (account?.provider === "google") {
         try {
-          console.log("🔍 Google sign-in attempt:", profile?.email);
+          console.log("🔍 [NextAuth] Google sign-in attempt:", profile?.email);
           await db.ensureInitialized();
 
           let existingUser = await db.getUser(profile?.email || "");
 
           if (!existingUser && profile?.email) {
             // 新規Googleユーザーをデータベースに作成
-            console.log("✅ Creating new Google user in database");
+            console.log("✅ [NextAuth] Creating new Google user in database");
             // ユーザー作成はデータベースの初期化で自動的に行われる
           } else {
-            console.log("✅ Existing Google user found:", existingUser?.email);
+            console.log(
+              "✅ [NextAuth] Existing Google user found:",
+              existingUser?.email
+            );
           }
         } catch (error) {
-          console.error("💥 Google sign-in error:", error);
+          console.error("💥 [NextAuth] Google sign-in error:", error);
           return false;
         }
       }
+
+      console.log("✅ [NextAuth] SignIn approved");
       return true;
     },
   },
@@ -186,9 +227,15 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   cookies: {
     sessionToken: {
-      name: `next-auth.session-token`,
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -198,10 +245,8 @@ export const authOptions: NextAuthOptions = {
       },
     },
   },
-  secret:
-    process.env.NEXTAUTH_SECRET ||
-    "fallback-secret-for-development-only-please-change-in-production",
-  debug: process.env.NODE_ENV === "development",
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: true, // 開発環境でのデバッグを有効化
   logger: {
     error(code, metadata) {
       console.error(`🚨 [NextAuth Error]: ${code}`, metadata);
@@ -210,9 +255,7 @@ export const authOptions: NextAuthOptions = {
       console.warn(`⚠️ [NextAuth Warning]: ${code}`);
     },
     debug(code, metadata) {
-      if (process.env.NODE_ENV === "development") {
-        console.debug(`🐛 [NextAuth Debug]: ${code}`, metadata);
-      }
+      console.debug(`🐛 [NextAuth Debug]: ${code}`, metadata);
     },
   },
 };

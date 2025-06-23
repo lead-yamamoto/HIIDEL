@@ -20,12 +20,13 @@ export const config = {
      * - api/analytics: 分析API（公開）
      * - api/surveys: アンケートAPI（公開）
      * - api/stores: 店舗API（公開）
+     * - api/debug: デバッグAPI（開発用）
      * - s: アンケート回答ページ（公開）
      * - auth: 認証ページ
      * - _next: Next.jsシステムファイル
      * - 静的ファイル
      * 残りのパスに認証を適用
      */
-    "/((?!api/auth|api/google|api/analytics|api/surveys|api/stores|s/|auth|_next|favicon\\.ico).*)",
+    "/((?!api/auth|api/google|api/analytics|api/surveys|api/stores|api/debug|s/|auth|_next|favicon\\.ico).*)",
   ],
 };

@@ -42,18 +42,43 @@ export default function SignInPage() {
     setError("");
 
     try {
+      console.log("🔍 [SignIn] Attempting login for:", email);
+
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
 
+      console.log("🔍 [SignIn] SignIn result:", result);
+
       if (result?.error) {
+        console.log("❌ [SignIn] Login failed:", result.error);
         setError("メールアドレスまたはパスワードが正しくありません");
+      } else if (result?.ok) {
+        console.log("✅ [SignIn] Login successful, checking session...");
+
+        // セッションが作成されるまで少し待つ
+        setTimeout(async () => {
+          const session = await getSession();
+          console.log("🔍 [SignIn] Session after login:", session);
+
+          if (session) {
+            console.log("✅ [SignIn] Session confirmed, redirecting...");
+            router.push("/");
+          } else {
+            console.log("⚠️ [SignIn] No session found after login");
+            setError(
+              "ログインに成功しましたが、セッションの作成に失敗しました"
+            );
+          }
+        }, 1000);
       } else {
-        router.push("/");
+        console.log("⚠️ [SignIn] Unexpected result:", result);
+        setError("ログインに失敗しました");
       }
     } catch (error) {
+      console.error("💥 [SignIn] Login error:", error);
       setError("ログインに失敗しました");
     } finally {
       setIsLoading(false);
