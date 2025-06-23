@@ -57,6 +57,7 @@ export default function SurveyResponsePage({
   const [improvementText, setImprovementText] = useState("");
   const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     fetchSurvey();
@@ -89,16 +90,9 @@ export default function SurveyResponsePage({
               console.log(
                 `🔗 Setting Google Review URL: ${store.googleReviewUrl}`
               );
-              console.log(
-                `🔍 Google Review URL type: ${typeof store.googleReviewUrl}`
-              );
-              console.log(
-                `🔍 Google Review URL length: ${store.googleReviewUrl.length}`
-              );
               setGoogleReviewUrl(store.googleReviewUrl);
             } else {
               console.log(`⚠️ No Google Review URL found for store`);
-              console.log(`🔍 Store object:`, store);
             }
 
             if (store?.displayName) {
@@ -287,24 +281,53 @@ export default function SurveyResponsePage({
               console.log(`⚠️ Using fallback Google Review URL`);
             }
 
-            // リダイレクト直前のデバッグ情報
-            console.log(`🚀 About to redirect to: ${googleReviewUrl}`);
-            console.log(`🔍 Current URL: ${window.location.href}`);
-            console.log(`⏰ Redirect timestamp: ${new Date().toISOString()}`);
+            // リダイレクト状態を設定
+            console.log(
+              `🌟 Setting redirect state for URL: ${googleReviewUrl}`
+            );
+            setIsRedirecting(true);
 
-            // 少し遅延を入れてリダイレクトを確実に実行
-            setTimeout(() => {
-              console.log(`🎯 Executing redirect now...`);
-              window.location.href = googleReviewUrl;
-            }, 100);
+            // より確実なリダイレクト処理
+            const executeRedirect = () => {
+              console.log(`🚀 Executing redirect to: ${googleReviewUrl}`);
+
+              // ユーザーアクションによるリダイレクトとして実行
+              const link = document.createElement("a");
+              link.href = googleReviewUrl;
+              link.target = "_blank";
+              link.rel = "noopener noreferrer";
+
+              // リンクを一時的にDOMに追加してクリック
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+
+              console.log(`✅ Redirect link clicked successfully`);
+
+              // フォールバック: 直接的なリダイレクトも試行
+              setTimeout(() => {
+                console.log(`🔄 Fallback: Direct window.location redirect`);
+                try {
+                  window.location.href = googleReviewUrl;
+                } catch (error) {
+                  console.error("Direct redirect failed:", error);
+                }
+              }, 1000);
+            };
+
+            // 即座に実行（ユーザーアクションのコンテキスト内で）
+            executeRedirect();
+
+            // リダイレクト処理は非同期で実行されるため、ここではisSubmittingをfalseにしない
+            return;
           } else {
             const data = await response.json();
             setError(data.error || "回答の送信に失敗しました");
+            setIsSubmitting(false);
           }
         } catch (error) {
           console.error("回答送信エラー:", error);
           setError("回答の送信に失敗しました");
-        } finally {
           setIsSubmitting(false);
         }
       } else {
@@ -440,6 +463,51 @@ export default function SurveyResponsePage({
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
+      </div>
+    );
+  }
+
+  if (isRedirecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="w-full max-w-md text-center">
+            <CardHeader>
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <CardTitle className="text-2xl">
+                Googleレビューページへ移動中...
+              </CardTitle>
+              <CardDescription>
+                アンケートの回答をありがとうございました！
+                <br />
+                Googleレビューページに移動しています。
+                <br />
+                <br />
+                <span className="text-sm text-muted-foreground">
+                  自動的に移動しない場合は、下のボタンをクリックしてください。
+                </span>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={() => {
+                  if (googleReviewUrl) {
+                    console.log(`🔗 Manual redirect to: ${googleReviewUrl}`);
+                    window.open(googleReviewUrl, "_blank");
+                  }
+                }}
+                className="w-full"
+                variant="outline"
+              >
+                Googleレビューページを開く
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }

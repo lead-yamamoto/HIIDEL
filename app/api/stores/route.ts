@@ -135,7 +135,7 @@ function generateFallbackReviewUrl(
   return fallbackUrl;
 }
 
-// GET: 店舗一覧取得または個別店舗取得
+// GET: 店舗一覧取得
 export async function GET(request: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId();
@@ -144,14 +144,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const storeId = searchParams.get("id");
-
-    console.log(
-      `🔍 Getting stores for user: ${userId}${
-        storeId ? ` (specific store: ${storeId})` : ""
-      }`
-    );
+    console.log(`🔍 Getting stores for user: ${userId}`);
 
     // 統合データベースから店舗を取得
     let stores: any[] = [];
@@ -165,28 +158,6 @@ export async function GET(request: NextRequest) {
       console.log(`📊 Using fallback data: ${stores.length} stores`);
     }
 
-    // 特定の店舗IDが指定されている場合
-    if (storeId) {
-      const store = stores.find((s) => s.id === storeId);
-
-      if (!store) {
-        console.log(`❌ Store not found: ${storeId}`);
-        return NextResponse.json(
-          { error: "店舗が見つかりません" },
-          { status: 404 }
-        );
-      }
-
-      console.log(`✅ Found specific store: ${store.displayName}`);
-      console.log(`🔗 Google Review URL: ${store.googleReviewUrl || "未設定"}`);
-
-      return NextResponse.json({
-        store,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // 全店舗を返す
     return NextResponse.json({
       stores,
       count: stores.length,
