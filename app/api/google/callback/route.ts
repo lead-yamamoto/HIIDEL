@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import { db } from "../../../../lib/database";
 
 // Google OAuth設定
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -133,6 +136,36 @@ export async function GET(request: NextRequest) {
 
     const userInfo = await userInfoResponse.json();
     console.log("✅ User info retrieved:", userInfo.email);
+
+    // 🔧 トークンをデータベースに保存
+    try {
+      console.log("💾 Saving Google tokens to database...");
+
+      // 現在のセッションからユーザー情報を取得
+      const session = await getServerSession(authOptions);
+      const userEmail = session?.user?.email || userInfo.email;
+
+      if (userEmail) {
+        // トークンの有効期限を計算
+        const expiryDate = new Date();
+        expiryDate.setSeconds(
+          expiryDate.getSeconds() + (tokenData.expires_in || 3600)
+        );
+
+        await db.updateUserGoogleTokens(userEmail, {
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiryDate: expiryDate,
+        });
+
+        console.log("✅ Google tokens saved to database for:", userEmail);
+      } else {
+        console.log("⚠️ No user email found, tokens saved only to cookies");
+      }
+    } catch (dbError) {
+      console.error("❌ Failed to save tokens to database:", dbError);
+      // データベース保存に失敗してもCookieは設定されているので続行
+    }
 
     // 認証成功後、GBP連携ページにリダイレクト
     console.log("🎉 Google OAuth flow completed successfully");

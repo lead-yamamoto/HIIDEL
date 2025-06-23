@@ -29,6 +29,9 @@ interface User {
   role: "owner" | "manager" | "staff";
   companyName: string;
   isGoogleConnected: boolean;
+  googleAccessToken?: string;
+  googleRefreshToken?: string;
+  googleTokenExpiry?: Date;
   createdAt: Date;
 }
 
@@ -522,16 +525,83 @@ class Database {
     email: string,
     isConnected: boolean
   ): Promise<void> {
-    const users = await this.getData(
+    const users = await this.getData<User>(
       KEYS.USERS,
       "__HIIDEL_USERS__",
       this.defaultUsers
     );
-    const user = users.find((user) => user.email === email);
-    if (user) {
-      user.isGoogleConnected = isConnected;
+
+    const userIndex = users.findIndex((u) => u.email === email);
+    if (userIndex !== -1) {
+      users[userIndex].isGoogleConnected = isConnected;
       await this.setData(KEYS.USERS, "__HIIDEL_USERS__", users);
     }
+  }
+
+  // 🔧 新規追加: Googleトークンの更新
+  async updateUserGoogleTokens(
+    email: string,
+    tokens: {
+      accessToken?: string;
+      refreshToken?: string;
+      expiryDate?: Date;
+    }
+  ): Promise<void> {
+    console.log(`🔄 Updating Google tokens for user: ${email}`);
+
+    const users = await this.getData<User>(
+      KEYS.USERS,
+      "__HIIDEL_USERS__",
+      this.defaultUsers
+    );
+
+    const userIndex = users.findIndex((u) => u.email === email);
+    if (userIndex !== -1) {
+      if (tokens.accessToken !== undefined) {
+        users[userIndex].googleAccessToken = tokens.accessToken;
+      }
+      if (tokens.refreshToken !== undefined) {
+        users[userIndex].googleRefreshToken = tokens.refreshToken;
+      }
+      if (tokens.expiryDate !== undefined) {
+        users[userIndex].googleTokenExpiry = tokens.expiryDate;
+      }
+
+      // トークンがクリアされた場合は接続状態もfalseに
+      if (!tokens.accessToken && !tokens.refreshToken) {
+        users[userIndex].isGoogleConnected = false;
+      } else if (tokens.accessToken) {
+        users[userIndex].isGoogleConnected = true;
+      }
+
+      await this.setData(KEYS.USERS, "__HIIDEL_USERS__", users);
+      console.log(`✅ Google tokens updated for user: ${email}`);
+    } else {
+      console.log(`❌ User not found: ${email}`);
+    }
+  }
+
+  // 🔧 新規追加: Googleトークンの取得
+  async getUserGoogleTokens(email: string): Promise<{
+    accessToken?: string;
+    refreshToken?: string;
+    expiryDate?: Date;
+  } | null> {
+    const users = await this.getData<User>(
+      KEYS.USERS,
+      "__HIIDEL_USERS__",
+      this.defaultUsers
+    );
+
+    const user = users.find((u) => u.email === email);
+    if (user && user.isGoogleConnected) {
+      return {
+        accessToken: user.googleAccessToken,
+        refreshToken: user.googleRefreshToken,
+        expiryDate: user.googleTokenExpiry,
+      };
+    }
+    return null;
   }
 
   // 店舗管理
