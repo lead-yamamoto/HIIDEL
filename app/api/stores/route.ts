@@ -144,9 +144,87 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
-    console.log(`🔍 Getting stores for user: ${userId}`);
+    const { searchParams } = new URL(request.url);
+    const storeId = searchParams.get("id");
 
-    // 統合データベースから店舗を取得
+    // 単一店舗の取得
+    if (storeId) {
+      console.log(`🔍 Getting single store: ${storeId} for user: ${userId}`);
+
+      let stores: any[] = [];
+      try {
+        stores = await db.getStores(userId);
+        console.log(`📊 Found ${stores.length} stores from database`);
+      } catch (error) {
+        console.error("Database error:", error);
+        return NextResponse.json(
+          { error: "店舗の取得に失敗しました" },
+          { status: 500 }
+        );
+      }
+
+      const store = stores.find((s) => s.id === storeId);
+
+      if (!store) {
+        console.log(`❌ Store not found: ${storeId}`);
+        return NextResponse.json(
+          { error: "店舗が見つかりません" },
+          { status: 404 }
+        );
+      }
+
+      console.log(`✅ Found store: ${store.displayName}`);
+      console.log(`🔗 Google Review URL: ${store.googleReviewUrl || "未設定"}`);
+
+      // GoogleレビューURLが未設定の場合、自動生成を試行
+      if (!store.googleReviewUrl) {
+        console.log(
+          `🔧 Attempting to generate Google Review URL for store: ${store.displayName}`
+        );
+        try {
+          const { url, placeId } = await generateGoogleReviewUrlFromPlaceId(
+            store.displayName,
+            store.address,
+            store.googleLocationId,
+            store.placeId
+          );
+
+          if (url) {
+            // データベースを更新
+            const updatedStore = await db.updateStore(storeId, userId, {
+              googleReviewUrl: url,
+              placeId: placeId || store.placeId,
+            });
+
+            if (updatedStore) {
+              console.log(`✅ Generated and saved Google Review URL: ${url}`);
+
+              return NextResponse.json({
+                store: updatedStore,
+                timestamp: new Date().toISOString(),
+              });
+            } else {
+              console.error(`❌ Failed to update store: ${storeId}`);
+            }
+          } else {
+            console.log(
+              `⚠️ Could not generate Google Review URL for store: ${store.displayName}`
+            );
+          }
+        } catch (error) {
+          console.error(`❌ Error generating Google Review URL:`, error);
+        }
+      }
+
+      return NextResponse.json({
+        store,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // 全店舗の取得
+    console.log(`🔍 Getting all stores for user: ${userId}`);
+
     let stores: any[] = [];
     try {
       stores = await db.getStores(userId);

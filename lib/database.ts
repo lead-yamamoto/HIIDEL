@@ -576,6 +576,42 @@ class Database {
     return store;
   }
 
+  async updateStore(
+    storeId: string,
+    userId: string,
+    updateData: Partial<Store>
+  ): Promise<Store | null> {
+    const allStores = await this.getData<Store>(
+      KEYS.STORES,
+      "__HIIDEL_STORES__",
+      []
+    );
+
+    const storeIndex = allStores.findIndex(
+      (store) => store.id === storeId && store.userId === userId
+    );
+
+    if (storeIndex === -1) {
+      console.log(`❌ Store not found for update: ${storeId}`);
+      return null;
+    }
+
+    const updatedStore = {
+      ...allStores[storeIndex],
+      ...updateData,
+      id: storeId, // IDは変更不可
+      userId: userId, // ユーザーIDは変更不可
+      updatedAt: new Date(),
+    };
+
+    allStores[storeIndex] = updatedStore;
+
+    await this.setData(KEYS.STORES, "__HIIDEL_STORES__", allStores);
+
+    console.log(`✅ Store updated: ${storeId}`);
+    return updatedStore;
+  }
+
   async deleteStore(storeId: string, userId: string): Promise<boolean> {
     const allStores = await this.getData<Store>(
       KEYS.STORES,
