@@ -345,61 +345,154 @@ export default function SurveyResponsePage({
               console.log(`🚀 Executing redirect to: ${googleReviewUrl}`);
               console.log(`📱 Device: ${isMobile ? "Mobile" : "Desktop"}`);
 
-              // モバイル・デスクトップ共通: 新しいタブで開く
-              console.log(`🌐 Opening in new tab for all devices`);
-              try {
-                // ユーザーアクションによるリダイレクトとして実行
-                const link = document.createElement("a");
-                link.href = googleReviewUrl;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
+              if (isMobile) {
+                // モバイル: 複数の方法を試行して新しいタブで開く
+                console.log(
+                  `📱 Mobile: Attempting multiple methods to open new tab`
+                );
 
-                console.log(`🔗 Debug: リンク要素作成完了`, {
-                  href: link.href,
-                  target: link.target,
-                  device: isMobile ? "Mobile" : "Desktop",
-                });
+                let newTabOpened = false;
 
-                // リンクを一時的にDOMに追加してクリック
-                document.body.appendChild(link);
-                console.log(`📝 Debug: リンクをDOMに追加`);
+                // 方法1: window.open with specific mobile parameters
+                try {
+                  const newWindow = window.open(
+                    googleReviewUrl,
+                    "_blank",
+                    "noopener,noreferrer"
+                  );
+                  if (newWindow && !newWindow.closed) {
+                    console.log(`✅ Mobile Method 1: window.open succeeded`);
+                    newTabOpened = true;
+                  } else {
+                    console.log(
+                      `❌ Mobile Method 1: window.open failed or blocked`
+                    );
+                  }
+                } catch (error) {
+                  console.error("🚨 Mobile Method 1 failed:", error);
+                }
 
-                link.click();
-                console.log(`👆 Debug: リンククリック実行`);
+                // 方法2: プログラム的なリンククリック（モバイル最適化）
+                if (!newTabOpened) {
+                  try {
+                    const link = document.createElement("a");
+                    link.href = googleReviewUrl;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
 
-                document.body.removeChild(link);
-                console.log(`🗑️ Debug: リンクをDOMから削除`);
+                    // モバイル向けの追加属性
+                    link.style.display = "none";
 
-                console.log(`✅ Redirect link clicked successfully`);
+                    document.body.appendChild(link);
+                    console.log(`📝 Mobile Method 2: Link added to DOM`);
 
-                // 新しいタブでリダイレクトした後、元のタブは完了画面を表示
+                    // タッチイベントをシミュレート
+                    const touchEvent = new Event("touchstart", {
+                      bubbles: true,
+                    });
+                    link.dispatchEvent(touchEvent);
+
+                    link.click();
+                    console.log(
+                      `👆 Mobile Method 2: Link clicked with touch simulation`
+                    );
+
+                    document.body.removeChild(link);
+                    newTabOpened = true;
+                    console.log(`✅ Mobile Method 2: Link click completed`);
+                  } catch (error) {
+                    console.error("🚨 Mobile Method 2 failed:", error);
+                  }
+                }
+
+                // 方法3: 遅延実行でのwindow.open
+                if (!newTabOpened) {
+                  try {
+                    setTimeout(() => {
+                      const newWindow = window.open(googleReviewUrl, "_blank");
+                      if (newWindow) {
+                        console.log(
+                          `✅ Mobile Method 3: Delayed window.open succeeded`
+                        );
+                      } else {
+                        console.log(
+                          `❌ Mobile Method 3: Delayed window.open failed`
+                        );
+                      }
+                    }, 100);
+                    newTabOpened = true;
+                  } catch (error) {
+                    console.error("🚨 Mobile Method 3 failed:", error);
+                  }
+                }
+
+                // 元のタブは完了画面を表示
                 setTimeout(() => {
-                  console.log(`🎉 Showing completion screen in current tab`);
+                  console.log(
+                    `🎉 Mobile: Showing completion screen in current tab`
+                  );
                   setIsSubmitted(true);
                   setIsSubmitting(false);
                   setIsRedirecting(false);
-                }, 1000);
-              } catch (error) {
-                console.error("🚨 Redirect execution failed:", error);
-                // エラー時は新しいタブで開くことを試行
+                }, 1500); // モバイルは少し長めに待つ
+              } else {
+                // デスクトップ: 従来の方法
+                console.log(`💻 Desktop: Opening in new tab`);
                 try {
-                  window.open(googleReviewUrl, "_blank");
-                  console.log(`✅ Fallback: Opened in new tab`);
-                  // 成功した場合も完了画面を表示
+                  // ユーザーアクションによるリダイレクトとして実行
+                  const link = document.createElement("a");
+                  link.href = googleReviewUrl;
+                  link.target = "_blank";
+                  link.rel = "noopener noreferrer";
+
+                  console.log(`🔗 Debug: リンク要素作成完了`, {
+                    href: link.href,
+                    target: link.target,
+                  });
+
+                  // リンクを一時的にDOMに追加してクリック
+                  document.body.appendChild(link);
+                  console.log(`📝 Debug: リンクをDOMに追加`);
+
+                  link.click();
+                  console.log(`👆 Debug: リンククリック実行`);
+
+                  document.body.removeChild(link);
+                  console.log(`🗑️ Debug: リンクをDOMから削除`);
+
+                  console.log(`✅ Desktop: Redirect link clicked successfully`);
+
+                  // 新しいタブでリダイレクトした後、元のタブは完了画面を表示
                   setTimeout(() => {
+                    console.log(
+                      `🎉 Desktop: Showing completion screen in current tab`
+                    );
                     setIsSubmitted(true);
                     setIsSubmitting(false);
                     setIsRedirecting(false);
                   }, 1000);
-                } catch (fallbackError) {
-                  console.error(
-                    "🚨 Fallback redirect also failed:",
-                    fallbackError
-                  );
-                  // 全てのリダイレクトが失敗した場合も完了画面を表示
-                  setIsSubmitted(true);
-                  setIsSubmitting(false);
-                  setIsRedirecting(false);
+                } catch (error) {
+                  console.error("🚨 Desktop redirect execution failed:", error);
+                  // エラー時は新しいタブで開くことを試行
+                  try {
+                    window.open(googleReviewUrl, "_blank");
+                    console.log(`✅ Desktop Fallback: Opened in new tab`);
+                    // 成功した場合も完了画面を表示
+                    setTimeout(() => {
+                      setIsSubmitted(true);
+                      setIsSubmitting(false);
+                      setIsRedirecting(false);
+                    }, 1000);
+                  } catch (fallbackError) {
+                    console.error(
+                      "🚨 Desktop fallback redirect also failed:",
+                      fallbackError
+                    );
+                    // 全てのリダイレクトが失敗した場合も完了画面を表示
+                    setIsSubmitted(true);
+                    setIsSubmitting(false);
+                    setIsRedirecting(false);
+                  }
                 }
               }
             };
