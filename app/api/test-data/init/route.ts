@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { db } from "@/lib/database";
 
 async function getAuthenticatedUserId(): Promise<string | null> {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (session?.user?.id) {
+      console.log("✅ 認証されたユーザーID:", session.user.id);
       return session.user.id;
     }
+    console.log("⚠️ セッションが見つからない、フォールバックを使用");
     // フォールバック: デモユーザー
     return "1";
   } catch (error) {
