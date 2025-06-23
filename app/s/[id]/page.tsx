@@ -93,6 +93,12 @@ export default function SurveyResponsePage({
               setGoogleReviewUrl(store.googleReviewUrl);
             } else {
               console.log(`⚠️ No Google Review URL found for store`);
+              console.log(`🔍 Debug: Store object details:`, {
+                storeKeys: Object.keys(store || {}),
+                googleReviewUrl: store?.googleReviewUrl,
+                hasGoogleReviewUrl: "googleReviewUrl" in (store || {}),
+                storeObject: store,
+              });
             }
 
             if (store?.displayName) {
@@ -241,6 +247,12 @@ export default function SurveyResponsePage({
       console.log(
         `✅ 平均評価が4.0以上のため、Googleレビューページへ遷移します`
       );
+      console.log(`🔍 Debug: GoogleレビューURL存在チェック:`, {
+        googleReviewUrl,
+        hasUrl: !!googleReviewUrl,
+        urlType: typeof googleReviewUrl,
+        urlLength: googleReviewUrl?.length || 0,
+      });
 
       if (googleReviewUrl) {
         setIsSubmitting(true);
@@ -290,32 +302,57 @@ export default function SurveyResponsePage({
             // より確実なリダイレクト処理
             const executeRedirect = () => {
               console.log(`🚀 Executing redirect to: ${googleReviewUrl}`);
+              console.log(`🔍 Debug: リダイレクト実行開始`);
 
-              // ユーザーアクションによるリダイレクトとして実行
-              const link = document.createElement("a");
-              link.href = googleReviewUrl;
-              link.target = "_blank";
-              link.rel = "noopener noreferrer";
+              try {
+                // ユーザーアクションによるリダイレクトとして実行
+                const link = document.createElement("a");
+                link.href = googleReviewUrl;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
 
-              // リンクを一時的にDOMに追加してクリック
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
+                console.log(`🔗 Debug: リンク要素作成完了`, {
+                  href: link.href,
+                  target: link.target,
+                });
 
-              console.log(`✅ Redirect link clicked successfully`);
+                // リンクを一時的にDOMに追加してクリック
+                document.body.appendChild(link);
+                console.log(`📝 Debug: リンクをDOMに追加`);
 
-              // フォールバック: 直接的なリダイレクトも試行
-              setTimeout(() => {
-                console.log(`🔄 Fallback: Direct window.location redirect`);
+                link.click();
+                console.log(`👆 Debug: リンククリック実行`);
+
+                document.body.removeChild(link);
+                console.log(`🗑️ Debug: リンクをDOMから削除`);
+
+                console.log(`✅ Redirect link clicked successfully`);
+
+                // フォールバック: 直接的なリダイレクトも試行
+                setTimeout(() => {
+                  console.log(`🔄 Fallback: Direct window.location redirect`);
+                  try {
+                    window.location.href = googleReviewUrl;
+                  } catch (error) {
+                    console.error("Direct redirect failed:", error);
+                  }
+                }, 1000);
+              } catch (error) {
+                console.error("🚨 Redirect execution failed:", error);
+                // エラー時は直接リダイレクトを試行
                 try {
-                  window.location.href = googleReviewUrl;
-                } catch (error) {
-                  console.error("Direct redirect failed:", error);
+                  window.open(googleReviewUrl, "_blank");
+                } catch (fallbackError) {
+                  console.error(
+                    "🚨 Fallback redirect also failed:",
+                    fallbackError
+                  );
                 }
-              }, 1000);
+              }
             };
 
             // 即座に実行（ユーザーアクションのコンテキスト内で）
+            console.log(`🎯 Debug: リダイレクト関数実行開始`);
             executeRedirect();
 
             // リダイレクト処理は非同期で実行されるため、ここではisSubmittingをfalseにしない
@@ -332,6 +369,12 @@ export default function SurveyResponsePage({
         }
       } else {
         console.log(`⚠️ GoogleレビューURLが設定されていません`);
+        console.log(`🔍 Debug: GoogleレビューURL詳細:`, {
+          googleReviewUrl,
+          type: typeof googleReviewUrl,
+          length: googleReviewUrl?.length,
+          truthyCheck: !!googleReviewUrl,
+        });
         // GoogleレビューURLがない場合は、まず回答を保存してから完了画面を表示
         setIsSubmitting(true);
         setError(null);
