@@ -581,6 +581,44 @@ class Database {
     }
   }
 
+  // 🔧 新規追加: Googleトークンの取得（データベース優先、Cookieフォールバック）
+  async getGoogleAccessToken(email?: string): Promise<string | null> {
+    // データベースから取得を試行
+    if (email) {
+      try {
+        const tokens = await this.getUserGoogleTokens(email);
+        if (tokens?.accessToken) {
+          // 有効期限をチェック
+          if (!tokens.expiryDate || tokens.expiryDate > new Date()) {
+            console.log("✅ Valid access token found in database");
+            return tokens.accessToken;
+          } else {
+            console.log("⏰ Database token expired");
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error getting token from database:", error);
+      }
+    }
+
+    // フォールバック: Cookieから取得
+    try {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const accessToken = cookieStore.get("google_access_token")?.value;
+
+      if (accessToken) {
+        console.log("🍪 Using access token from cookie");
+        return accessToken;
+      }
+    } catch (error) {
+      console.error("❌ Error getting token from cookie:", error);
+    }
+
+    console.log("❌ No valid access token found");
+    return null;
+  }
+
   // 🔧 新規追加: Googleトークンの取得
   async getUserGoogleTokens(email: string): Promise<{
     accessToken?: string;

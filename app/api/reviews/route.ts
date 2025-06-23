@@ -74,8 +74,11 @@ export async function GET(request: NextRequest) {
       }${limit ? ` (limit: ${limit})` : ""}`
     );
 
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("google_access_token")?.value;
+    // 🔧 データベース優先でGoogle アクセストークンを取得
+    const session = await getServerSession(authOptions);
+    const accessToken = await db.getGoogleAccessToken(
+      session?.user?.email || undefined
+    );
 
     if (!accessToken) {
       return NextResponse.json(

@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import { db } from "../../../../lib/database";
 
 // Location IDをCIDまたはPlace IDに変換する関数
 async function convertLocationIdToPlaceId(
@@ -80,13 +83,14 @@ export async function GET(request: NextRequest) {
   console.log(`📅 Timestamp: ${new Date().toISOString()}`);
 
   try {
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("google_access_token")?.value;
-    const refreshToken = cookieStore.get("google_refresh_token")?.value;
+    // 🔧 データベース優先でGoogle アクセストークンを取得
+    const session = await getServerSession(authOptions);
+    const accessToken = await db.getGoogleAccessToken(
+      session?.user?.email || undefined
+    );
 
     console.log("🔐 Token status:", {
       hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken,
     });
 
     if (!accessToken) {

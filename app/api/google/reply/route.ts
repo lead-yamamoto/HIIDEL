@@ -1,9 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import { db } from "../../../../lib/database";
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("google_access_token")?.value;
+  // 🔧 データベース優先でGoogle アクセストークンを取得
+  const session = await getServerSession(authOptions);
+  const accessToken = await db.getGoogleAccessToken(
+    session?.user?.email || undefined
+  );
 
   if (!accessToken) {
     console.error("❌ No Google access token found");
@@ -65,10 +71,9 @@ export async function POST(request: NextRequest) {
           if (refreshResponse.ok) {
             console.log("✅ Token refreshed, retrying reply...");
             // 新しいトークンを取得して再試行
-            const newCookieStore = await cookies();
-            const newAccessToken = newCookieStore.get(
-              "google_access_token"
-            )?.value;
+            const newAccessToken = await db.getGoogleAccessToken(
+              session?.user?.email || undefined
+            );
 
             if (newAccessToken) {
               const retryResponse = await fetch(apiUrl, {

@@ -92,8 +92,11 @@ export async function GET(request: NextRequest) {
       } (${period} days)`
     );
 
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get("google_access_token")?.value;
+    // 🔧 データベース優先でGoogle アクセストークンを取得
+    const session = await getServerSession(authOptions);
+    const accessToken = await db.getGoogleAccessToken(
+      session?.user?.email || undefined
+    );
 
     // 店舗データを取得
     const allStores = await db.getStores(userId);
@@ -268,10 +271,9 @@ export async function GET(request: NextRequest) {
                     `✅ Token refreshed, retrying analytics fetch...`
                   );
                   // 新しいトークンで再試行
-                  const newCookieStore = await cookies();
-                  const newAccessToken = newCookieStore.get(
-                    "google_access_token"
-                  )?.value;
+                  const newAccessToken = await db.getGoogleAccessToken(
+                    session?.user?.email || undefined
+                  );
 
                   if (newAccessToken) {
                     const retryResponse = await fetch(apiUrl, {
