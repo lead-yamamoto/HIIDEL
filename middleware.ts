@@ -18,7 +18,8 @@ export const config = {
      * - api/auth (authentication routes)
      * - api/google (Google integration routes - not requiring session auth)
      * - api/analytics (analytics routes - allowing public access for dashboard)
-     * - api/surveys/ (followed by ID - public survey access)
+     * - api/surveys (survey-related routes - public access)
+     * - api/stores (store routes - public access for surveys)
      * - s (survey response pages - public access)
      * - auth (authentication pages)
      * - _next/static (static files)
@@ -26,6 +27,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - static assets (svg, png, jpg, etc.)
      */
-    "/((?!api/auth|api/google|api/analytics|api/surveys/.|s|auth|_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.ico).*)",
+    "/((?!api/auth|api/google|api/analytics|api/surveys|api/stores|s|auth|_next/static|_next/image|favicon.ico|.*\\.svg|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.ico).*)",
   ],
 };

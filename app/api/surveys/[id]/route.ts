@@ -16,6 +16,11 @@ export async function GET(
     const surveyId = id;
 
     console.log(`🔍 Getting survey (public access): ${surveyId}`);
+    console.log(`📡 Request URL: ${request.url}`);
+    console.log(
+      `📡 Request headers:`,
+      Object.fromEntries(request.headers.entries())
+    );
 
     // 公開アンケートアクセスのため認証不要
     // 全ユーザーのアンケートから検索

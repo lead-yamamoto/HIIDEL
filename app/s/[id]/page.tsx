@@ -67,6 +67,8 @@ export default function SurveyResponsePage({
     try {
       console.log(`📋 Fetching survey: ${surveyId}`);
       const response = await fetch(`/api/surveys/${surveyId}`);
+      console.log(`📋 Survey API response status: ${response.status}`);
+
       if (response.ok) {
         const data = await response.json();
         console.log(`📊 Survey data:`, data);
@@ -110,15 +112,25 @@ export default function SurveyResponsePage({
             }
           } else {
             console.error(`❌ Store API failed: ${storeResponse.status}`);
+            const storeErrorData = await storeResponse.text();
+            console.error(`❌ Store API error details:`, storeErrorData);
           }
         } else {
           console.log(`⚠️ No store ID found in survey`);
         }
       } else {
+        console.error(`❌ Survey API failed: ${response.status}`);
+        const errorData = await response.text();
+        console.error(`❌ Survey API error details:`, errorData);
         setError("アンケートが見つかりません");
       }
     } catch (error) {
       console.error("アンケート取得エラー:", error);
+      console.error("Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        surveyId: surveyId,
+      });
       setError("アンケートの読み込みに失敗しました");
     } finally {
       setIsLoading(false);
