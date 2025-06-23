@@ -6,7 +6,7 @@ async function getAuthenticatedUserId(): Promise<string | null> {
   return "1"; // demo@hiidel.comのユーザーID
 }
 
-// GET: 特定のアンケートを取得
+// GET: 特定のアンケートを取得（公開アクセス可能）
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,24 +15,24 @@ export async function GET(
     const { id } = await params;
     const surveyId = id;
 
-    console.log(`🔍 Getting survey: ${surveyId}`);
+    console.log(`🔍 Getting survey (public access): ${surveyId}`);
 
-    // 認証チェック
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
-      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-    }
-
-    // Redisデータベースからアンケートを取得（フォールバック付き）
-    let surveys = [];
+    // 公開アンケートアクセスのため認証不要
+    // 全ユーザーのアンケートから検索
+    let allSurveys = [];
     try {
-      surveys = await db.getSurveys(userId);
-      console.log(`📊 Found ${surveys.length} surveys in Redis database`);
+      // 全ユーザーのアンケートを取得するため、データベースから直接取得
+      const users = ["1"]; // 現在は demo ユーザーのみ
+      for (const userId of users) {
+        const userSurveys = await db.getSurveys(userId);
+        allSurveys.push(...userSurveys);
+      }
+      console.log(`📊 Found ${allSurveys.length} total surveys in database`);
     } catch (error) {
-      console.error("Redis Database error when fetching surveys:", error);
+      console.error("Database error when fetching surveys:", error);
 
       // フォールバック: 初期データを使用
-      surveys = [
+      allSurveys = [
         {
           id: "demo-survey-1",
           storeId: "demo-store-1",
@@ -63,7 +63,7 @@ export async function GET(
     }
 
     // 指定されたIDのアンケートを検索
-    const survey = surveys.find((s) => s.id === surveyId);
+    const survey = allSurveys.find((s) => s.id === surveyId);
 
     if (!survey) {
       console.log(`❌ Survey not found: ${surveyId}`);
@@ -72,7 +72,7 @@ export async function GET(
       const fallbackSurvey = {
         id: surveyId,
         storeId: "demo-store-1",
-        userId: userId,
+        userId: "1",
         name: "アンケートが見つかりません",
         questions: [
           {
@@ -100,7 +100,8 @@ export async function GET(
     // 店舗情報を取得（オプション）
     let store = null;
     try {
-      const stores = await db.getStores(userId);
+      // アンケートの所有者から店舗情報を取得
+      const stores = await db.getStores(survey.userId);
       store = stores.find((s) => s.id === survey.storeId);
       console.log(`🏪 Store info: ${store ? store.displayName : "Not found"}`);
     } catch (error) {

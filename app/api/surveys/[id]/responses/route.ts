@@ -6,7 +6,7 @@ async function getAuthenticatedUserId(): Promise<string | null> {
   return "1"; // demo@hiidel.comのユーザーID
 }
 
-// POST: アンケート回答を送信
+// POST: アンケート回答を送信（公開アクセス可能）
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,18 +16,20 @@ export async function POST(
     const surveyId = id;
     const { answers, respondentInfo } = await request.json();
 
-    console.log(`📝 Submitting survey response for: ${surveyId}`);
+    console.log(
+      `📝 Submitting survey response (public access) for: ${surveyId}`
+    );
     console.log(`📊 Answers:`, answers);
     console.log(`ℹ️ Respondent info:`, respondentInfo);
 
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
-      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+    // アンケートの存在確認（全ユーザーから検索）
+    let survey = null;
+    const users = ["1"]; // 現在は demo ユーザーのみ
+    for (const userId of users) {
+      const userSurveys = await db.getSurveys(userId);
+      survey = userSurveys.find((s) => s.id === surveyId);
+      if (survey) break;
     }
-
-    // アンケートの存在確認
-    const surveys = await db.getSurveys(userId);
-    const survey = surveys.find((s) => s.id === surveyId);
 
     if (!survey) {
       console.log(`❌ Survey not found: ${surveyId}`);

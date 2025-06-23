@@ -138,23 +138,22 @@ function generateFallbackReviewUrl(
 // GET: 店舗一覧取得
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-
-    if (!userId) {
-      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get("id");
 
-    // 単一店舗の取得
+    // 単一店舗の取得（公開アクセス可能 - アンケート用）
     if (storeId) {
-      console.log(`🔍 Getting single store: ${storeId} for user: ${userId}`);
+      console.log(`🔍 Getting single store (public access): ${storeId}`);
 
-      let stores: any[] = [];
+      // 全ユーザーの店舗から検索
+      let allStores: any[] = [];
       try {
-        stores = await db.getStores(userId);
-        console.log(`📊 Found ${stores.length} stores from database`);
+        const users = ["1"]; // 現在は demo ユーザーのみ
+        for (const userId of users) {
+          const userStores = await db.getStores(userId);
+          allStores.push(...userStores);
+        }
+        console.log(`📊 Found ${allStores.length} total stores from database`);
       } catch (error) {
         console.error("Database error:", error);
         return NextResponse.json(
@@ -163,7 +162,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const store = stores.find((s) => s.id === storeId);
+      const store = allStores.find((s) => s.id === storeId);
 
       if (!store) {
         console.log(`❌ Store not found: ${storeId}`);
@@ -191,7 +190,7 @@ export async function GET(request: NextRequest) {
 
           if (url) {
             // データベースを更新
-            const updatedStore = await db.updateStore(storeId, userId, {
+            const updatedStore = await db.updateStore(storeId, store.userId, {
               googleReviewUrl: url,
               placeId: placeId || store.placeId,
             });
@@ -220,6 +219,13 @@ export async function GET(request: NextRequest) {
         store,
         timestamp: new Date().toISOString(),
       });
+    }
+
+    // 全店舗の取得（認証が必要）
+    const userId = await getAuthenticatedUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
     // 全店舗の取得
