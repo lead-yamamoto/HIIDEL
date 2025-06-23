@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import {
   Card,
   CardContent,
@@ -50,7 +49,6 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 interface UserAccount {
@@ -103,7 +101,6 @@ interface AdminUser {
 
 export default function AdminPage() {
   const router = useRouter();
-  const { theme } = useTheme();
 
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserAccount[]>([]);
@@ -350,7 +347,6 @@ export default function AdminPage() {
             <span className="text-gray-400">({adminUser.username})</span>
           </div>
           <div className="flex gap-2">
-            <ThemeToggle />
             <Button
               onClick={() => fetchAdminData()}
               variant="outline"

@@ -1,23 +1,28 @@
 "use client";
 
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bell, Menu, Search, HelpCircle } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Sidebar } from "@/components/sidebar";
-import { useSession } from "next-auth/react";
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import {
+  Menu,
   Home,
   Store,
   MessageSquare,
-  Users,
-  QrCode,
   BarChart3,
+  QrCode,
+  ClipboardList,
   Settings,
+  LogOut,
+  User,
+  ArrowLeft,
+  Bell,
+  Search,
+  HelpCircle,
   Globe,
 } from "lucide-react";
 
@@ -99,7 +104,7 @@ export function MobileHeader({
       description: "アンケートの作成と管理",
       url: "/surveys",
       category: "メインメニュー",
-      icon: <Users size={16} />,
+      icon: <User size={16} />,
       keywords: [
         "アンケート",
         "調査",
@@ -149,7 +154,7 @@ export function MobileHeader({
       description: "アカウント情報の管理",
       url: "/profile",
       category: "設定",
-      icon: <Users size={16} />,
+      icon: <User size={16} />,
       keywords: ["プロフィール", "アカウント", "設定", "profile", "account"],
     },
     {
@@ -325,7 +330,6 @@ export function MobileHeader({
       </div>
 
       <div className="flex items-center gap-3">
-        <ThemeToggle />
         <Link href="/help">
           <Button
             variant="ghost"

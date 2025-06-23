@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Share2, Loader2 } from "lucide-react";
-import { useTheme } from "next-themes";
 
 interface QRCodeDisplayProps {
   url: string;
@@ -15,7 +14,6 @@ export function QRCodeDisplay({ url, title, size = 256 }: QRCodeDisplayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [qrCodeStyling, setQrCodeStyling] = useState<any>(null);
 
@@ -29,8 +27,6 @@ export function QRCodeDisplay({ url, title, size = 256 }: QRCodeDisplayProps) {
       const loadQRCodeStyling = async () => {
         // 動的インポート（ブラウザ環境でのみ実行）
         const QRCodeStyling = (await import("qr-code-styling")).default;
-
-        const isDark = resolvedTheme === "dark";
 
         const qrCode = new QRCodeStyling({
           width: size,
@@ -76,7 +72,7 @@ export function QRCodeDisplay({ url, title, size = 256 }: QRCodeDisplayProps) {
 
       loadQRCodeStyling();
     }
-  }, [url, size, resolvedTheme, mounted]);
+  }, [url, size, mounted]);
 
   const downloadQRCode = async () => {
     if (isDownloading || !qrCodeStyling) return;
