@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
       reviewText: reviewText,
       rating: rating,
       businessName: businessName,
+      businessType: businessType,
       hasReviewText: !!reviewText,
       hasRating: !!rating,
       hasBusinessName: !!businessName,
@@ -36,12 +37,16 @@ export async function POST(request: NextRequest) {
 
     console.log("API キー確認:", {
       openai: !!openaiApiKey,
+      openaiLength: openaiApiKey?.length || 0,
       gemini: !!geminiApiKey,
+      geminiLength: geminiApiKey?.length || 0,
+      NODE_ENV: process.env.NODE_ENV,
     });
 
     // OpenAI APIを試す
     if (openaiApiKey) {
       try {
+        console.log("🤖 OpenAI APIで返信を生成中...");
         const result = await generateOpenAIReply(
           reviewText,
           rating,
@@ -49,6 +54,7 @@ export async function POST(request: NextRequest) {
           businessType,
           openaiApiKey
         );
+        console.log("✅ OpenAI API成功");
         return NextResponse.json(result);
       } catch (error) {
         console.error("OpenAI API失敗:", error);
@@ -59,6 +65,7 @@ export async function POST(request: NextRequest) {
     // Google Gemini APIを試す
     if (geminiApiKey) {
       try {
+        console.log("🤖 Gemini APIで返信を生成中...");
         const result = await generateGeminiReply(
           reviewText,
           rating,
@@ -66,6 +73,7 @@ export async function POST(request: NextRequest) {
           businessType,
           geminiApiKey
         );
+        console.log("✅ Gemini API成功");
         return NextResponse.json(result);
       } catch (error) {
         console.error("Gemini API失敗:", error);
@@ -74,9 +82,13 @@ export async function POST(request: NextRequest) {
     }
 
     // APIキーが設定されていない場合はテスト返信
-    console.log("APIキーが未設定のため、テスト返信を生成します");
+    console.log("⚠️ APIキーが未設定のため、テスト返信を生成します");
     const result = generateTestReply(reviewText, rating, businessName);
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      warning:
+        "APIキーが設定されていないため、テスト返信を使用しています。本番環境では OPENAI_API_KEY または GEMINI_API_KEY を設定してください。",
+    });
   } catch (error) {
     console.error("AI review reply error:", error);
     return NextResponse.json(

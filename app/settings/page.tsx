@@ -2,7 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Mail, Plus, Save } from "lucide-react";
+import {
+  AlertCircle,
+  Mail,
+  Plus,
+  Save,
+  Brain,
+  CheckCircle,
+  XCircle,
+  Info,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
@@ -11,14 +20,40 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
+  const [envStatus, setEnvStatus] = useState<any>(null);
+  const [isLoadingEnv, setIsLoadingEnv] = useState(false);
 
   // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
+    fetchEnvStatus();
   }, []);
+
+  const fetchEnvStatus = async () => {
+    setIsLoadingEnv(true);
+    try {
+      const response = await fetch("/api/debug/env");
+      if (response.ok) {
+        const data = await response.json();
+        setEnvStatus(data.envStatus);
+      }
+    } catch (error) {
+      console.error("環境変数の取得に失敗:", error);
+    } finally {
+      setIsLoadingEnv(false);
+    }
+  };
 
   if (!mounted) return null;
 
@@ -54,6 +89,7 @@ export default function SettingsPage() {
             <Tabs defaultValue="templates" className="w-full">
               <TabsList className="mb-6 overflow-x-auto flex w-full md:w-auto">
                 <TabsTrigger value="templates">返信テンプレート</TabsTrigger>
+                <TabsTrigger value="ai-settings">AI設定</TabsTrigger>
                 <TabsTrigger value="notifications">通知設定</TabsTrigger>
                 <TabsTrigger value="auto-reply">自動返信</TabsTrigger>
               </TabsList>
@@ -185,6 +221,148 @@ export default function SettingsPage() {
                       <li>{"{担当者名}"} - 返信担当者の名前</li>
                     </ul>
                   </div>
+                </motion.div>
+              </TabsContent>
+
+              <TabsContent value="ai-settings">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Card className="mb-6">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Brain className="h-5 w-5" />
+                        AI返信生成の設定
+                      </CardTitle>
+                      <CardDescription>
+                        AI返信機能の設定と状態を確認できます
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        {/* APIキーの状態 */}
+                        <div>
+                          <h4 className="font-medium mb-3">APIキーの状態</h4>
+                          {isLoadingEnv ? (
+                            <div className="text-sm text-muted-foreground">
+                              読み込み中...
+                            </div>
+                          ) : envStatus ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className="font-medium">OpenAI API</div>
+                                  {envStatus.OPENAI_API_KEY?.isSet ? (
+                                    <div className="flex items-center gap-2 text-green-600">
+                                      <CheckCircle size={16} />
+                                      <span className="text-sm">設定済み</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-red-600">
+                                      <XCircle size={16} />
+                                      <span className="text-sm">未設定</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {envStatus.OPENAI_API_KEY?.isSet && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {envStatus.OPENAI_API_KEY.length}文字
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between p-3 border rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className="font-medium">
+                                    Google Gemini API
+                                  </div>
+                                  {envStatus.GEMINI_API_KEY?.isSet ? (
+                                    <div className="flex items-center gap-2 text-green-600">
+                                      <CheckCircle size={16} />
+                                      <span className="text-sm">設定済み</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-red-600">
+                                      <XCircle size={16} />
+                                      <span className="text-sm">未設定</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {envStatus.GEMINI_API_KEY?.isSet && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {envStatus.GEMINI_API_KEY.length}文字
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <Alert>
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertTitle>環境変数の取得に失敗</AlertTitle>
+                              <AlertDescription>
+                                環境変数の状態を確認できませんでした。
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+
+                        {/* AI設定の説明 */}
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertTitle>AI返信機能について</AlertTitle>
+                          <AlertDescription className="space-y-2">
+                            <p>
+                              AI返信機能を使用するには、OpenAI APIまたはGoogle
+                              Gemini APIのキーが必要です。
+                            </p>
+                            <p className="text-sm">
+                              本番環境では、Vercel等のデプロイ環境で以下の環境変数を設定してください：
+                            </p>
+                            <ul className="list-disc list-inside text-sm mt-2">
+                              <li>OPENAI_API_KEY: OpenAI APIキー</li>
+                              <li>GEMINI_API_KEY: Google Gemini APIキー</li>
+                            </ul>
+                          </AlertDescription>
+                        </Alert>
+
+                        {/* APIキーが設定されていない場合の警告 */}
+                        {envStatus &&
+                          !envStatus.OPENAI_API_KEY?.isSet &&
+                          !envStatus.GEMINI_API_KEY?.isSet && (
+                            <Alert variant="destructive">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertTitle>
+                                APIキーが設定されていません
+                              </AlertTitle>
+                              <AlertDescription>
+                                AI返信機能を使用するには、少なくとも1つのAPIキーを設定してください。
+                                現在は定型文での返信のみ利用可能です。
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
+                        {/* AI返信のプレビュー */}
+                        <div>
+                          <h4 className="font-medium mb-3">AI返信プレビュー</h4>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            AI返信機能のテストを行えます
+                          </p>
+                          <Button
+                            onClick={() => {
+                              // TODO: AI返信テスト機能の実装
+                              alert("テスト機能は準備中です");
+                            }}
+                            variant="outline"
+                          >
+                            <Brain className="h-4 w-4 mr-2" />
+                            AI返信をテスト
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </motion.div>
               </TabsContent>
 

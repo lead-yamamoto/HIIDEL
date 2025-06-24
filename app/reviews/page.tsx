@@ -310,6 +310,9 @@ export default function ReviewsPage() {
 
     setIsGeneratingAiReply(true);
     try {
+      // 店舗情報を取得
+      const store = stores.find((s) => s.id === selectedReview.storeId);
+
       const response = await fetch("/api/ai/review-reply", {
         method: "POST",
         headers: {
@@ -318,15 +321,19 @@ export default function ReviewsPage() {
         body: JSON.stringify({
           reviewText: selectedReview.comment,
           rating: selectedReview.rating,
-          storeName: selectedReview.storeName,
+          businessName: selectedReview.storeName || store?.name || "お店",
+          businessType: "ビジネス",
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log("✅ AI返信生成成功:", data);
         setReplyText(data.reply);
       } else {
         console.error("AI返信生成に失敗:", response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.error("エラー詳細:", errorData);
         // エラー時はテスト返信を生成
         const testReply = `${selectedReview.reviewer.displayName}様、この度は貴重なご意見をありがとうございます。お客様のフィードバックを真摯に受け止め、より良いサービスの提供に努めてまいります。またのご利用をお待ちしております。`;
         setReplyText(testReply);
