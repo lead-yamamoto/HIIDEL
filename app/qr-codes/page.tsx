@@ -116,12 +116,22 @@ export default function QRCodesPage() {
 
       if (storesResponse.ok) {
         const storesData = await storesResponse.json();
-        setStores(storesData.stores || []);
+        console.log("📊 Stores data:", storesData);
+        // storesDataが配列の場合とオブジェクトの場合に対応
+        const storesArray = Array.isArray(storesData)
+          ? storesData
+          : storesData.stores || [];
+        setStores(storesArray);
       }
 
       if (surveysResponse.ok) {
         const surveysData = await surveysResponse.json();
-        setSurveys(surveysData.surveys || []);
+        console.log("📋 Surveys data:", surveysData);
+        // surveysDataが配列の場合とオブジェクトの場合に対応
+        const surveysArray = Array.isArray(surveysData)
+          ? surveysData
+          : surveysData.surveys || [];
+        setSurveys(surveysArray);
       }
 
       console.log("✅ Data fetched successfully");
@@ -187,10 +197,19 @@ export default function QRCodesPage() {
         setQRName("");
         await fetchData(); // データを再取得
       } else {
-        console.error("❌ Failed to create QR code");
+        const errorData = await response.json();
+        console.error("❌ Failed to create QR code:", errorData);
+        setError(
+          `QRコードの作成に失敗しました: ${errorData.error || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.error("💥 Error creating QR code:", error);
+      setError(
+        `エラーが発生しました: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsCreating(false);
     }
@@ -456,10 +475,18 @@ export default function QRCodesPage() {
                       />
                     </div>
                   </div>
+                  {error && (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+                      <div className="text-red-700 text-sm">{error}</div>
+                    </div>
+                  )}
                   <DialogFooter>
                     <Button
                       type="submit"
-                      onClick={createQRCode}
+                      onClick={() => {
+                        setError("");
+                        createQRCode();
+                      }}
                       disabled={
                         !selectedType ||
                         !qrName ||
