@@ -18,7 +18,6 @@ declare global {
   var __HIIDEL_REVIEWS__: Review[] | undefined;
   var __HIIDEL_QR_CODES__: QRCode[] | undefined;
   var __HIIDEL_SURVEY_RESPONSES__: SurveyResponse[] | undefined;
-  var __HIIDEL_AI_SETTINGS__: AISettings[] | undefined;
   var __HIIDEL_INITIALIZED__: boolean | undefined;
   var __HIIDEL_USERS__: User[] | undefined;
 }
@@ -107,33 +106,6 @@ interface SurveyResponse {
   storeId: string;
   responses: Record<string, any>;
   createdAt: Date;
-}
-
-interface AISettings {
-  id: string;
-  userId: string;
-  storeId?: string; // 特定の店舗用設定（nullの場合は全店舗共通）
-
-  // AI返信プロンプト設定
-  customPromptEnabled: boolean;
-  positiveReviewPrompt: string;
-  neutralReviewPrompt: string;
-  negativeReviewPrompt: string;
-  noCommentReviewPrompt: string;
-
-  // 自動返信設定
-  autoReplyEnabled: boolean;
-  autoReplyDelayMinutes: number; // 何分後に自動返信するか
-  autoReplyBusinessHoursOnly: boolean; // 営業時間内のみ
-  businessHoursStart: string; // "09:00"
-  businessHoursEnd: string; // "18:00"
-
-  // フィルタ設定
-  autoReplyMinRating: number; // 何星以上で自動返信するか
-  autoReplyMaxRating: number; // 何星以下で自動返信するか
-
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 // Redis クライアント
@@ -232,7 +204,6 @@ const KEYS = {
   REVIEWS: "hiidel:reviews",
   QR_CODES: "hiidel:qr_codes",
   SURVEY_RESPONSES: "hiidel:survey_responses",
-  AI_SETTINGS: "hiidel:ai_settings",
   USERS: "hiidel:users",
   INITIALIZED: "hiidel:initialized",
 };
@@ -379,7 +350,6 @@ class Database {
     if (!global.__HIIDEL_QR_CODES__) global.__HIIDEL_QR_CODES__ = [];
     if (!global.__HIIDEL_SURVEY_RESPONSES__)
       global.__HIIDEL_SURVEY_RESPONSES__ = [];
-    if (!global.__HIIDEL_AI_SETTINGS__) global.__HIIDEL_AI_SETTINGS__ = [];
     if (!global.__HIIDEL_USERS__) global.__HIIDEL_USERS__ = this.defaultUsers;
 
     console.log("✅ Global storage initialized");
@@ -470,7 +440,6 @@ class Database {
       this.redis.set(KEYS.REVIEWS, defaultReviews),
       this.redis.set(KEYS.QR_CODES, []),
       this.redis.set(KEYS.SURVEY_RESPONSES, []),
-      this.redis.set(KEYS.AI_SETTINGS, []),
       this.redis.set(KEYS.USERS, this.defaultUsers),
     ]);
 
@@ -1303,122 +1272,6 @@ class Database {
 
     console.log("✅ Test data initialized successfully");
   }
-
-  // AI設定関連のメソッド
-  async getAISettings(
-    userId: string,
-    storeId?: string
-  ): Promise<AISettings | null> {
-    try {
-      const settings = await this.getData<AISettings>(
-        KEYS.AI_SETTINGS,
-        "__HIIDEL_AI_SETTINGS__",
-        []
-      );
-
-      // 指定された店舗の設定を優先、なければ全店舗共通設定を返す
-      const storeSpecific = settings.find(
-        (s) => s.userId === userId && s.storeId === storeId
-      );
-      if (storeSpecific) return storeSpecific;
-
-      const globalSetting = settings.find(
-        (s) => s.userId === userId && !s.storeId
-      );
-      return globalSetting || null;
-    } catch (error) {
-      console.error("❌ Error getting AI settings:", error);
-      return null;
-    }
-  }
-
-  async createOrUpdateAISettings(
-    settingsData: Omit<AISettings, "id" | "createdAt" | "updatedAt">
-  ): Promise<AISettings> {
-    try {
-      const settings = await this.getData<AISettings>(
-        KEYS.AI_SETTINGS,
-        "__HIIDEL_AI_SETTINGS__",
-        []
-      );
-
-      // 既存の設定を検索
-      const existingIndex = settings.findIndex(
-        (s) =>
-          s.userId === settingsData.userId && s.storeId === settingsData.storeId
-      );
-
-      const now = new Date();
-      let updatedSettings: AISettings;
-
-      if (existingIndex >= 0) {
-        // 既存設定を更新
-        updatedSettings = {
-          ...settings[existingIndex],
-          ...settingsData,
-          updatedAt: now,
-        };
-        settings[existingIndex] = updatedSettings;
-      } else {
-        // 新規設定を作成
-        updatedSettings = {
-          id: Date.now().toString(),
-          ...settingsData,
-          createdAt: now,
-          updatedAt: now,
-        };
-        settings.push(updatedSettings);
-      }
-
-      await this.setData(KEYS.AI_SETTINGS, "__HIIDEL_AI_SETTINGS__", settings);
-      return updatedSettings;
-    } catch (error) {
-      console.error("❌ Error creating/updating AI settings:", error);
-      throw error;
-    }
-  }
-
-  async deleteAISettings(userId: string, storeId?: string): Promise<boolean> {
-    try {
-      const settings = await this.getData<AISettings>(
-        KEYS.AI_SETTINGS,
-        "__HIIDEL_AI_SETTINGS__",
-        []
-      );
-
-      const filteredSettings = settings.filter(
-        (s) => !(s.userId === userId && s.storeId === storeId)
-      );
-
-      if (filteredSettings.length === settings.length) {
-        return false; // 設定が見つからなかった
-      }
-
-      await this.setData(
-        KEYS.AI_SETTINGS,
-        "__HIIDEL_AI_SETTINGS__",
-        filteredSettings
-      );
-      return true;
-    } catch (error) {
-      console.error("❌ Error deleting AI settings:", error);
-      return false;
-    }
-  }
-
-  // 未返信レビューを取得（自動返信用）
-  async getUnrepliedReviews(
-    userId: string,
-    storeId?: string
-  ): Promise<Review[]> {
-    try {
-      const reviews = await this.getReviews(userId, storeId);
-      return reviews.filter((review) => !review.replied);
-    } catch (error) {
-      console.error("❌ Error getting unreplied reviews:", error);
-      return [];
-    }
-  }
 }
 
 // シングルトンパターンでデータベースインスタンスを管理
@@ -1440,12 +1293,4 @@ declare global {
 }
 
 export const db = getDatabase();
-export type {
-  Store,
-  Survey,
-  Review,
-  QRCode,
-  SurveyResponse,
-  SurveyQuestion,
-  AISettings,
-};
+export type { Store, Survey, Review, QRCode, SurveyResponse, SurveyQuestion };

@@ -324,56 +324,12 @@ export default function ReviewsPage() {
     });
 
     setIsGeneratingAiReply(true);
-
-    // AI設定を取得
-    let aiSettings = null;
-    try {
-      const settingsResponse = await fetch(
-        `/api/ai-settings?storeId=${selectedReview.storeId}`
-      );
-      if (settingsResponse.ok) {
-        const settingsData = await settingsResponse.json();
-        if (settingsData.success) {
-          aiSettings = settingsData.settings;
-        }
-      }
-    } catch (error) {
-      console.warn(
-        "⚠️ [UI] Failed to load AI settings, using defaults:",
-        error
-      );
-    }
-
-    // カスタムプロンプトを選択
-    let customPrompt = null;
-    let useCustomPrompt = false;
-
-    if (aiSettings?.customPromptEnabled) {
-      useCustomPrompt = true;
-      const hasComment = !!selectedReview.comment?.trim();
-      const rating = selectedReview.rating || 5;
-      const isPositive = rating >= 4;
-      const isNeutral = rating === 3;
-
-      if (!hasComment) {
-        customPrompt = aiSettings.noCommentReviewPrompt;
-      } else if (isPositive) {
-        customPrompt = aiSettings.positiveReviewPrompt;
-      } else if (isNeutral) {
-        customPrompt = aiSettings.neutralReviewPrompt;
-      } else {
-        customPrompt = aiSettings.negativeReviewPrompt;
-      }
-    }
-
     const requestData = {
       reviewText: selectedReview.comment || "",
       rating: selectedReview.rating || 5,
       businessName:
         selectedReview.storeName || selectedReview.storeId || "店舗",
       businessType: "店舗",
-      customPrompt: customPrompt,
-      useCustomPrompt: useCustomPrompt,
     };
 
     console.log("🤖 [UI] Generating AI reply for review:", {

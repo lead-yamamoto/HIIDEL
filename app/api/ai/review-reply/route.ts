@@ -5,15 +5,8 @@ export async function POST(request: NextRequest) {
     const requestBody = await request.json();
     console.log("🤖 [AI Review Reply] Request received:", requestBody);
 
-    const {
-      reviewText,
-      rating,
-      businessName,
-      businessType,
-      storeName,
-      customPrompt,
-      useCustomPrompt,
-    } = requestBody;
+    const { reviewText, rating, businessName, businessType, storeName } =
+      requestBody;
 
     // パラメータの正規化（storeNameもbusinessNameとして受け入れる）
     const finalBusinessName = businessName || storeName;
@@ -83,9 +76,7 @@ export async function POST(request: NextRequest) {
           finalBusinessName,
           businessType,
           geminiApiKey,
-          hasReviewText,
-          customPrompt,
-          useCustomPrompt
+          hasReviewText
         );
         console.log(
           "✅ [AI Review Reply] Gemini response generated successfully"
@@ -103,9 +94,7 @@ export async function POST(request: NextRequest) {
       processedReviewText,
       rating,
       finalBusinessName,
-      hasReviewText,
-      customPrompt,
-      useCustomPrompt
+      hasReviewText
     );
     return NextResponse.json(result);
   } catch (error) {
@@ -129,35 +118,13 @@ async function generateGeminiReply(
   businessName: string,
   businessType: string = "ビジネス",
   apiKey: string,
-  hasReviewText: boolean = true,
-  customPrompt?: string,
-  useCustomPrompt: boolean = false
+  hasReviewText: boolean = true
 ) {
   const isPositive = rating >= 4;
   const responseType = isPositive ? "感謝" : "改善への取り組み";
 
-  // カスタムプロンプトが有効な場合はそれを使用
-  let prompt: string;
-  if (useCustomPrompt && customPrompt) {
-    prompt = `
-あなたは ${businessName} の優秀な顧客サービス担当者です。
-以下のレビューに対して、指定されたプロンプトに従って返信を作成してください。
-
-レビュー内容: ${hasReviewText ? `"${reviewText}"` : "（コメントなし）"}
-評価: ${rating}/5
-
-指定されたプロンプト:
-${customPrompt}
-
-上記のプロンプトに従って、自然で心のこもった返信を150文字以内で作成してください。
-返信のみを出力してください。引用符や余計な説明は不要です。
-`;
-  } else {
-    // デフォルトプロンプトを使用
-    const responseType = isPositive ? "感謝" : "改善への取り組み";
-
-    prompt = hasReviewText
-      ? `
+  const prompt = hasReviewText
+    ? `
 あなたは ${businessName} の${businessType}の優秀な顧客サービス担当者です。
 以下のGoogleレビューに対して、プロフェッショナルで心のこもった返信を日本語で作成してください。
 
@@ -168,22 +135,22 @@ ${customPrompt}
 - 150文字以内で簡潔に
 - 丁寧な敬語を使用
 - ${
-          isPositive
-            ? "感謝の気持ちを表現し、今後も良いサービスを提供する意欲を示す"
-            : "問題を真摯に受け止め、具体的な改善への取り組みを示す"
-        }
+        isPositive
+          ? "感謝の気持ちを表現し、今後も良いサービスを提供する意欲を示す"
+          : "問題を真摯に受け止め、具体的な改善への取り組みを示す"
+      }
 - 顧客の具体的なコメントに触れる
 - ${
-          !isPositive
-            ? "可能であれば改善策や連絡先を提示"
-            : "また来ていただきたいという気持ちを込める"
-        }
+        !isPositive
+          ? "可能であれば改善策や連絡先を提示"
+          : "また来ていただきたいという気持ちを込める"
+      }
 - 自然で温かみのある文章にする
 - 企業的すぎず、人間味のある返信にする
 
 返信のみを出力してください。引用符や余計な説明は不要です。
 `
-      : `
+    : `
 あなたは ${businessName} の${businessType}の優秀な顧客サービス担当者です。
 以下の評価のみのGoogleレビューに対して、プロフェッショナルで心のこもった返信を日本語で作成してください。
 
@@ -193,22 +160,21 @@ ${customPrompt}
 - 150文字以内で簡潔に
 - 丁寧な敬語を使用
 - ${
-          isPositive
-            ? "評価をいただいたことへの感謝を表現し、今後も良いサービスを提供する意欲を示す"
-            : "低い評価を真摯に受け止め、サービス改善への取り組みを示す"
-        }
+        isPositive
+          ? "評価をいただいたことへの感謝を表現し、今後も良いサービスを提供する意欲を示す"
+          : "低い評価を真摯に受け止め、サービス改善への取り組みを示す"
+      }
 - ${
-          isPositive
-            ? "また利用していただきたいという気持ちを込める"
-            : "具体的な改善策や今後の対応について言及"
-        }
+        isPositive
+          ? "また利用していただきたいという気持ちを込める"
+          : "具体的な改善策や今後の対応について言及"
+      }
 - 自然で温かみのある文章にする
 - 企業的すぎず、人間味のある返信にする
 - コメントがないことを自然に受け入れる
 
 返信のみを出力してください。引用符や余計な説明は不要です。
 `;
-  }
 
   // 最大3回リトライ
   let lastError: any = null;
@@ -306,31 +272,22 @@ function generateTestReply(
   reviewText: string,
   rating: number,
   businessName: string,
-  hasReviewText: boolean = true,
-  customPrompt?: string,
-  useCustomPrompt: boolean = false
+  hasReviewText: boolean = true
 ) {
   const isPositive = rating >= 4;
 
   let testReply: string;
 
-  // カスタムプロンプトが有効な場合は単純な返信を生成
-  if (useCustomPrompt && customPrompt) {
+  if (hasReviewText) {
+    // コメント付きレビューの場合
     testReply = isPositive
-      ? `この度は${businessName}をご利用いただき、ありがとうございます。お客様からの評価を心より感謝いたします。今後も最高のサービスを提供できるよう努めてまいります。`
-      : `この度は${businessName}をご利用いただき、ありがとうございました。いただいたご意見を真摯に受け止め、改善に努めてまいります。今後ともよろしくお願いいたします。`;
+      ? `この度は${businessName}をご利用いただき、ありがとうございます。お客様からの温かいお言葉を頂戴し、スタッフ一同大変嬉しく思っております。今後もより良いサービスを提供できるよう努めてまいります。またのご利用を心よりお待ちしております。`
+      : `この度は${businessName}をご利用いただき、ありがとうございました。貴重なご意見をいただき、改善点を真摯に受け止めております。お客様により良いサービスを提供できるよう、スタッフ一同改善に努めてまいります。機会がございましたら、ぜひ再度ご利用ください。`;
   } else {
-    if (hasReviewText) {
-      // コメント付きレビューの場合
-      testReply = isPositive
-        ? `この度は${businessName}をご利用いただき、ありがとうございます。お客様からの温かいお言葉を頂戴し、スタッフ一同大変嬉しく思っております。今後もより良いサービスを提供できるよう努めてまいります。またのご利用を心よりお待ちしております。`
-        : `この度は${businessName}をご利用いただき、ありがとうございました。貴重なご意見をいただき、改善点を真摯に受け止めております。お客様により良いサービスを提供できるよう、スタッフ一同改善に努めてまいります。機会がございましたら、ぜひ再度ご利用ください。`;
-    } else {
-      // 評価のみの場合
-      testReply = isPositive
-        ? `この度は${businessName}をご利用いただき、ありがとうございます。${rating}つ星の評価をいただき、スタッフ一同大変嬉しく思っております。今後もお客様にご満足いただけるよう、サービス向上に努めてまいります。またのご利用を心よりお待ちしております。`
-        : `この度は${businessName}をご利用いただき、ありがとうございました。いただいた評価を真摯に受け止め、お客様により良いサービスを提供できるよう改善に取り組んでまいります。お気づきの点がございましたら、お気軽にお声がけください。今後ともよろしくお願いいたします。`;
-    }
+    // 評価のみの場合
+    testReply = isPositive
+      ? `この度は${businessName}をご利用いただき、ありがとうございます。${rating}つ星の評価をいただき、スタッフ一同大変嬉しく思っております。今後もお客様にご満足いただけるよう、サービス向上に努めてまいります。またのご利用を心よりお待ちしております。`
+      : `この度は${businessName}をご利用いただき、ありがとうございました。いただいた評価を真摯に受け止め、お客様により良いサービスを提供できるよう改善に取り組んでまいります。お気づきの点がございましたら、お気軽にお声がけください。今後ともよろしくお願いいたします。`;
   }
 
   console.log(`🧪 [Test] Generated test reply (${testReply.length} chars)`);
@@ -342,12 +299,9 @@ function generateTestReply(
       rating: rating,
       isPositive: isPositive,
       responseType: isPositive ? "感謝" : "改善への取り組み",
-      provider: useCustomPrompt
-        ? "Test (Custom Prompt)"
-        : "Test (Gemini API not available)",
+      provider: "Test (Gemini API not available)",
       isTestReply: true,
       isFree: true,
-      customPromptUsed: useCustomPrompt,
     },
   };
 }
