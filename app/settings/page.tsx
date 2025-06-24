@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
   Info,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
@@ -28,11 +29,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Star } from "lucide-react";
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [envStatus, setEnvStatus] = useState<any>(null);
   const [isLoadingEnv, setIsLoadingEnv] = useState(false);
+  const [isTestingAI, setIsTestingAI] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [showTestDialog, setShowTestDialog] = useState(false);
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -52,6 +65,68 @@ export default function SettingsPage() {
       console.error("環境変数の取得に失敗:", error);
     } finally {
       setIsLoadingEnv(false);
+    }
+  };
+
+  const testAIReply = async () => {
+    setIsTestingAI(true);
+    setTestResult(null);
+
+    try {
+      // テスト用のレビューデータ
+      const testReviews = [
+        {
+          reviewText:
+            "スタッフの対応が素晴らしく、料理も美味しかったです。また来たいと思います。",
+          rating: 5,
+          businessName: "デモカフェ",
+          businessType: "カフェ・レストラン",
+        },
+        {
+          reviewText:
+            "料理の味は普通でしたが、待ち時間が長すぎました。改善してほしいです。",
+          rating: 2,
+          businessName: "デモカフェ",
+          businessType: "カフェ・レストラン",
+        },
+      ];
+
+      const results = [];
+
+      for (const testReview of testReviews) {
+        const response = await fetch("/api/ai/review-reply", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(testReview),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          results.push({
+            ...testReview,
+            reply: data.reply,
+            metadata: data.metadata,
+            warning: data.warning,
+          });
+        } else {
+          const errorData = await response.json();
+          results.push({
+            ...testReview,
+            error: errorData.error,
+          });
+        }
+      }
+
+      setTestResult(results);
+      setShowTestDialog(true);
+    } catch (error) {
+      console.error("AI返信テストエラー:", error);
+      setTestResult([{ error: "テスト中にエラーが発生しました" }]);
+      setShowTestDialog(true);
+    } finally {
+      setIsTestingAI(false);
     }
   };
 
@@ -350,14 +425,21 @@ export default function SettingsPage() {
                             AI返信機能のテストを行えます
                           </p>
                           <Button
-                            onClick={() => {
-                              // TODO: AI返信テスト機能の実装
-                              alert("テスト機能は準備中です");
-                            }}
+                            onClick={testAIReply}
                             variant="outline"
+                            disabled={isTestingAI}
                           >
-                            <Brain className="h-4 w-4 mr-2" />
-                            AI返信をテスト
+                            {isTestingAI ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                テスト中...
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="h-4 w-4 mr-2" />
+                                AI返信をテスト
+                              </>
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -593,6 +675,107 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* AI返信テスト結果ダイアログ */}
+      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>AI返信テスト結果</DialogTitle>
+            <DialogDescription>
+              テスト用のレビューに対するAI返信の生成結果です
+            </DialogDescription>
+          </DialogHeader>
+
+          {testResult && (
+            <div className="space-y-6">
+              {testResult.map((result: any, index: number) => (
+                <div key={index} className="border rounded-lg p-4">
+                  {result.error ? (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>エラー</AlertTitle>
+                      <AlertDescription>{result.error}</AlertDescription>
+                    </Alert>
+                  ) : (
+                    <>
+                      {/* テスト用レビュー */}
+                      <div className="mb-4">
+                        <h4 className="font-medium mb-2 flex items-center gap-2">
+                          レビュー {index + 1}
+                          <div className="flex items-center">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-4 w-4 ${
+                                  i < result.rating
+                                    ? "text-amber-500 fill-amber-500"
+                                    : "text-muted"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </h4>
+                        <div className="bg-muted/50 p-3 rounded-md text-sm">
+                          "{result.reviewText}"
+                        </div>
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          店舗: {result.businessName} | 業種:{" "}
+                          {result.businessType}
+                        </div>
+                      </div>
+
+                      {/* AI生成返信 */}
+                      <div className="mb-4">
+                        <h4 className="font-medium mb-2 flex items-center gap-2">
+                          AI生成返信
+                          {result.metadata?.provider && (
+                            <Badge variant="outline" className="text-xs">
+                              {result.metadata.provider}
+                            </Badge>
+                          )}
+                        </h4>
+                        <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-md text-sm border border-blue-200 dark:border-blue-800">
+                          {result.reply}
+                        </div>
+                      </div>
+
+                      {/* メタデータ */}
+                      {result.metadata && (
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <div>
+                            プロバイダー: {result.metadata.provider}
+                            {result.metadata.model &&
+                              ` (${result.metadata.model})`}
+                          </div>
+                          <div>
+                            返信タイプ:{" "}
+                            {result.metadata.responseType ||
+                            result.metadata.isPositive
+                              ? "感謝"
+                              : "改善への取り組み"}
+                          </div>
+                          {result.metadata.retries !== undefined && (
+                            <div>リトライ回数: {result.metadata.retries}</div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 警告メッセージ */}
+                      {result.warning && (
+                        <Alert className="mt-4">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>注意</AlertTitle>
+                          <AlertDescription>{result.warning}</AlertDescription>
+                        </Alert>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

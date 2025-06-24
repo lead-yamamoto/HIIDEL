@@ -313,6 +313,13 @@ export default function ReviewsPage() {
       // 店舗情報を取得
       const store = stores.find((s) => s.id === selectedReview.storeId);
 
+      console.log("🤖 AI返信生成開始:", {
+        reviewText: selectedReview.comment,
+        rating: selectedReview.rating,
+        businessName: selectedReview.storeName || store?.name || "お店",
+        businessType: "ビジネス",
+      });
+
       const response = await fetch("/api/ai/review-reply", {
         method: "POST",
         headers: {
@@ -330,16 +337,43 @@ export default function ReviewsPage() {
         const data = await response.json();
         console.log("✅ AI返信生成成功:", data);
         setReplyText(data.reply);
+
+        // 成功メッセージを表示（一時的なトースト風通知）
+        if (data.metadata?.provider) {
+          console.log(`🎉 ${data.metadata.provider}でAI返信を生成しました`);
+        }
+
+        if (data.warning) {
+          console.warn("⚠️ 警告:", data.warning);
+        }
       } else {
         console.error("AI返信生成に失敗:", response.status);
         const errorData = await response.json().catch(() => ({}));
         console.error("エラー詳細:", errorData);
+
+        // 詳細なエラーメッセージ
+        let errorMessage = "AI返信の生成に失敗しました。";
+        if (response.status === 400) {
+          errorMessage += " パラメータに問題があります。";
+        } else if (response.status === 500) {
+          errorMessage += " サーバーエラーが発生しました。";
+        }
+
+        alert(
+          errorMessage +
+            "\n\n定型文を使用するか、手動で返信を作成してください。"
+        );
+
         // エラー時はテスト返信を生成
         const testReply = `${selectedReview.reviewer.displayName}様、この度は貴重なご意見をありがとうございます。お客様のフィードバックを真摯に受け止め、より良いサービスの提供に努めてまいります。またのご利用をお待ちしております。`;
         setReplyText(testReply);
       }
     } catch (error) {
       console.error("AI返信生成エラー:", error);
+      alert(
+        "AI返信の生成中にネットワークエラーが発生しました。\n\n定型文を使用するか、手動で返信を作成してください。"
+      );
+
       // エラー時はテスト返信を生成
       const testReply = `${selectedReview.reviewer.displayName}様、この度は貴重なご意見をありがとうございます。お客様のフィードバックを真摯に受け止め、より良いサービスの提供に努めてまいります。またのご利用をお待ちしております。`;
       setReplyText(testReply);
