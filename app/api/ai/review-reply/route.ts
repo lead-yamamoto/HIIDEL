@@ -146,7 +146,7 @@ async function generateGeminiReply(
       console.log(`🔄 [Gemini] Attempt ${i + 1}/3`);
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: {
@@ -193,7 +193,7 @@ async function generateGeminiReply(
             isPositive: isPositive,
             responseType: responseType,
             provider: "Google Gemini",
-            model: "gemini-pro",
+            model: "gemini-2.5-flash-lite",
             attempt: i + 1,
             isFree: true,
           },

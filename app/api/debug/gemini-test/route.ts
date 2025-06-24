@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       "Hello! Please reply with '正常に動作しています' in Japanese.";
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${geminiApiKey}`,
       {
         method: "POST",
         headers: {
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       success: true,
       message: "Gemini API is working correctly",
       response: replyText,
-      model: "gemini-pro",
+      model: "gemini-2.5-flash-lite",
       isFree: true,
       quotaInfo: "Free tier: 60 requests per minute",
       timestamp: new Date().toISOString(),
