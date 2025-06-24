@@ -306,9 +306,32 @@ export default function ReviewsPage() {
 
   // AI返信を生成
   const generateAiReply = async () => {
-    if (!selectedReview) return;
+    if (!selectedReview) {
+      console.error("❌ [UI] No selected review");
+      return;
+    }
+
+    console.log("🔍 [UI] Selected review data:", {
+      id: selectedReview.id,
+      storeId: selectedReview.storeId,
+      storeName: selectedReview.storeName,
+      comment: selectedReview.comment,
+      rating: selectedReview.rating,
+      hasComment: !!selectedReview.comment,
+      hasStoreName: !!selectedReview.storeName,
+      commentLength: selectedReview.comment?.length || 0,
+      storeNameLength: selectedReview.storeName?.length || 0,
+    });
 
     setIsGeneratingAiReply(true);
+    const requestData = {
+      reviewText: selectedReview.comment || "",
+      rating: selectedReview.rating || 5,
+      businessName:
+        selectedReview.storeName || selectedReview.storeId || "店舗",
+      businessType: "店舗",
+    };
+
     console.log("🤖 [UI] Generating AI reply for review:", {
       reviewId: selectedReview.id,
       rating: selectedReview.rating,
@@ -316,18 +339,15 @@ export default function ReviewsPage() {
       storeName: selectedReview.storeName,
     });
 
+    console.log("📤 [UI] Sending request data:", requestData);
+
     try {
       const response = await fetch("/api/ai/review-reply", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          reviewText: selectedReview.comment,
-          rating: selectedReview.rating,
-          businessName: selectedReview.storeName,
-          businessType: "店舗", // デフォルト値を追加
-        }),
+        body: JSON.stringify(requestData),
       });
 
       if (response.ok) {

@@ -11,18 +11,37 @@ export async function POST(request: NextRequest) {
     // パラメータの正規化（storeNameもbusinessNameとして受け入れる）
     const finalBusinessName = businessName || storeName;
 
-    console.log("🔍 [AI Review Reply] Parameter check:", {
+    console.log("🔍 [AI Review Reply] Raw parameters received:", {
+      reviewText: reviewText,
+      rating: rating,
+      businessName: businessName,
+      businessType: businessType,
+      storeName: storeName,
+      finalBusinessName: finalBusinessName,
+    });
+
+    console.log("🔍 [AI Review Reply] Parameter validation:", {
       reviewText: !!reviewText,
       rating: !!rating,
       businessName: !!finalBusinessName,
       businessType: !!businessType,
+      reviewTextLength: reviewText?.length || 0,
+      finalBusinessNameLength: finalBusinessName?.length || 0,
     });
 
-    if (!reviewText || !rating || !finalBusinessName) {
+    if (
+      !reviewText ||
+      !reviewText.trim() ||
+      !rating ||
+      !finalBusinessName ||
+      !finalBusinessName.trim()
+    ) {
       console.error("❌ [AI Review Reply] Missing required parameters:", {
         reviewText: !!reviewText,
+        reviewTextTrimmed: !!reviewText?.trim(),
         rating: !!rating,
         businessName: !!finalBusinessName,
+        businessNameTrimmed: !!finalBusinessName?.trim(),
       });
       return NextResponse.json(
         {
