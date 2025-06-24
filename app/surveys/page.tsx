@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/card";
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
-import { LoadingState } from "@/components/ui/loading";
+import { SurveysSkeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface Survey {
   id: string;
@@ -118,7 +119,7 @@ export default function SurveysPage() {
   if (status === "loading") {
     return (
       <div className="flex min-h-screen bg-background text-foreground items-center justify-center">
-        <LoadingState message="認証情報を確認中..." />
+        <SurveysSkeleton />
       </div>
     );
   }
@@ -166,7 +167,7 @@ export default function SurveysPage() {
             </div>
 
             {/* ローディング状態 */}
-            {isLoading && <LoadingState message="アンケートを読み込み中..." />}
+            {isLoading && <SurveysSkeleton />}
 
             {/* 空の状態 */}
             {!isLoading && surveys.length === 0 && (

@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
-import { LoadingState } from "@/components/ui/loading";
+import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
@@ -348,7 +348,7 @@ export default function AnalyticsPage() {
             backUrl="/"
           />
           <div className="flex-1 flex items-center justify-center">
-            <LoadingState message="分析データを読み込み中..." />
+            <AnalyticsSkeleton />
           </div>
         </div>
       </div>

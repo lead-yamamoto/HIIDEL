@@ -24,8 +24,8 @@ import {
 
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
-import AddStoreDialog from "./add-store-dialog";
-import { LoadingState } from "@/components/ui/loading";
+import { StoresSkeleton } from "@/components/ui/skeleton";
+import { AddStoreDialog } from "./add-store-dialog";
 
 interface Store {
   id: string;
@@ -227,7 +227,7 @@ export default function StoresPage() {
             )}
 
             {/* ローディング状態 */}
-            {isLoading && <LoadingState message="店舗情報を読み込み中..." />}
+            {isLoading && <StoresSkeleton />}
 
             {/* 店舗リスト */}
             {isGoogleConnected && !isLoading && stores.length > 0 && (

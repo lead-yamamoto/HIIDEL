@@ -24,6 +24,7 @@ import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { cn } from "@/lib/utils";
 import { LoadingState, InlineLoading } from "@/components/ui/loading";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
 
 interface Analytics {
   totalStores: number;
@@ -310,7 +311,7 @@ export default function Dashboard() {
   if (!mounted || status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingState message="認証情報を確認中..." />
+        <DashboardSkeleton />
       </div>
     );
   }
@@ -333,7 +334,7 @@ export default function Dashboard() {
             showBackButton={false}
           />
           <div className="flex-1 flex items-center justify-center">
-            <LoadingState message="ダッシュボードデータを読み込み中..." />
+            <DashboardSkeleton />
           </div>
         </div>
       </div>

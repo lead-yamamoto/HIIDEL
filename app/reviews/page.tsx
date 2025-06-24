@@ -36,6 +36,7 @@ import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/ui/loading";
+import { ReviewsSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -571,9 +572,7 @@ export default function ReviewsPage() {
             )}
 
             {/* ローディング状態 */}
-            {isGoogleConnected && isLoading && (
-              <LoadingState message="実際のレビューを取得中..." />
-            )}
+            {isGoogleConnected && isLoading && <ReviewsSkeleton />}
 
             {/* レビュー一覧（店舗ごとにアコーディオン） */}
             {isGoogleConnected && !isLoading && !error && (
