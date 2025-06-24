@@ -40,7 +40,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { QRCodeDisplay } from "@/components/qr-code-display";
 import { LoadingState, InlineLoading } from "@/components/ui/loading";
-import { QRCodesSkeleton } from "@/components/ui/skeleton";
 
 interface QRCode {
   id: string;
@@ -311,7 +310,7 @@ export default function QRCodesPage() {
             backUrl="/"
           />
           <div className="flex-1 flex items-center justify-center">
-            <QRCodesSkeleton />
+            <LoadingState message="QRコードデータを読み込み中..." />
           </div>
         </div>
       </div>

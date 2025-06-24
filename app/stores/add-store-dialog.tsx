@@ -115,11 +115,6 @@ export default function AddStoreDialog({
   onStoreAdded,
   existingStores,
 }: AddStoreDialogProps) {
-  // 早期return for safety
-  if (!onStoreAdded || !existingStores) {
-    return null;
-  }
-
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [googleLocations, setGoogleLocations] = useState<GoogleLocation[]>([]);
@@ -132,10 +127,6 @@ export default function AddStoreDialog({
 
   // 既に追加済みかどうかをチェックする関数
   const isStoreAlreadyAdded = (googleLocationId: string) => {
-    if (!googleLocationId || !existingStores || existingStores.length === 0) {
-      return false;
-    }
-
     // 完全パスとLocation IDの両方をチェック
     const locationId = googleLocationId?.split("/").pop() || googleLocationId;
     const isAdded = existingStores.some(
@@ -151,8 +142,6 @@ export default function AddStoreDialog({
 
   // フィルタリングされたGoogle位置情報（検索条件のみでフィルタリング、追加済み店舗も表示）
   const filteredGoogleLocations = googleLocations.filter((location) => {
-    if (!location) return false;
-
     const matchesSearch =
       searchTerm === "" ||
       (location.title || location.displayName || "")
@@ -167,15 +156,13 @@ export default function AddStoreDialog({
 
   // 利用可能な店舗（追加されていない店舗）のみを表示
   const availableGoogleLocations = filteredGoogleLocations.filter(
-    (location) =>
-      location && location.name && !isStoreAlreadyAdded(location.name)
+    (location) => !isStoreAlreadyAdded(location.name)
   );
 
   // 統計情報を計算
   const totalLocations = googleLocations.length;
-  const addedStores = googleLocations.filter(
-    (location) =>
-      location && location.name && isStoreAlreadyAdded(location.name)
+  const addedStores = googleLocations.filter((location) =>
+    isStoreAlreadyAdded(location.name)
   ).length;
   const availableStores = totalLocations - addedStores;
 

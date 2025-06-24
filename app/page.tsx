@@ -24,7 +24,12 @@ import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { cn } from "@/lib/utils";
 import { LoadingState, InlineLoading } from "@/components/ui/loading";
-import { DashboardSkeleton } from "@/components/ui/skeleton";
+import {
+  SkeletonCard,
+  SkeletonStatCard,
+  SkeletonListItem,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
 interface Analytics {
   totalStores: number;
@@ -311,7 +316,7 @@ export default function Dashboard() {
   if (!mounted || status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <DashboardSkeleton />
+        <LoadingState message="認証情報を確認中..." />
       </div>
     );
   }
@@ -333,8 +338,89 @@ export default function Dashboard() {
             searchPlaceholder="クイック検索"
             showBackButton={false}
           />
-          <div className="flex-1 flex items-center justify-center">
-            <DashboardSkeleton />
+          <div className="flex-1 overflow-auto p-4 md:p-6">
+            <div className="max-w-7xl mx-auto">
+              {/* Welcome Message Skeleton */}
+              <div className="mb-6">
+                <SkeletonText
+                  lines={1}
+                  lineHeight="lg"
+                  className="w-1/3 mb-2"
+                />
+                <SkeletonText lines={1} lineHeight="sm" className="w-1/4" />
+              </div>
+
+              {/* Statistics Cards Skeleton */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+              </div>
+
+              {/* Quick Actions Skeleton */}
+              <div className="mb-6">
+                <SkeletonText lines={1} lineHeight="lg" className="w-32 mb-4" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <SkeletonCard contentHeight="h-24" />
+                  <SkeletonCard contentHeight="h-24" />
+                  <SkeletonCard contentHeight="h-24" />
+                </div>
+              </div>
+
+              {/* Two Column Layout Skeleton */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Unreplied Reviews Skeleton */}
+                <div>
+                  <SkeletonText
+                    lines={1}
+                    lineHeight="lg"
+                    className="w-40 mb-4"
+                  />
+                  <SkeletonCard showHeader={false} contentHeight="h-auto">
+                    <div className="space-y-3">
+                      <SkeletonListItem
+                        showAvatar={true}
+                        showDescription={true}
+                      />
+                      <SkeletonListItem
+                        showAvatar={true}
+                        showDescription={true}
+                      />
+                      <SkeletonListItem
+                        showAvatar={true}
+                        showDescription={true}
+                      />
+                    </div>
+                  </SkeletonCard>
+                </div>
+
+                {/* Improvement Feedbacks Skeleton */}
+                <div>
+                  <SkeletonText
+                    lines={1}
+                    lineHeight="lg"
+                    className="w-40 mb-4"
+                  />
+                  <SkeletonCard showHeader={false} contentHeight="h-auto">
+                    <div className="space-y-3">
+                      <SkeletonListItem
+                        showAvatar={false}
+                        showDescription={true}
+                      />
+                      <SkeletonListItem
+                        showAvatar={false}
+                        showDescription={true}
+                      />
+                      <SkeletonListItem
+                        showAvatar={false}
+                        showDescription={true}
+                      />
+                    </div>
+                  </SkeletonCard>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

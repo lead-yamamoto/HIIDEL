@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
-import { AnalyticsSkeleton } from "@/components/ui/skeleton";
+import { LoadingState } from "@/components/ui/loading";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
@@ -59,6 +59,14 @@ import {
 } from "recharts";
 import { format, subDays, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
+import {
+  SkeletonCard,
+  SkeletonStatCard,
+  SkeletonChart,
+  SkeletonText,
+  SkeletonTableRow,
+  SkeletonWithShine,
+} from "@/components/ui/skeleton";
 
 interface Analytics {
   totalStores: number;
@@ -347,8 +355,69 @@ export default function AnalyticsPage() {
             searchPlaceholder="データを検索..."
             backUrl="/"
           />
-          <div className="flex-1 flex items-center justify-center">
-            <AnalyticsSkeleton />
+          <div className="flex-1 overflow-auto p-4 md:p-6">
+            <div className="max-w-7xl mx-auto">
+              {/* Header with filters skeleton */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <SkeletonText lines={1} lineHeight="lg" className="w-48" />
+                <div className="flex items-center gap-2">
+                  <SkeletonWithShine className="h-10 w-[180px] rounded-md" />
+                  <SkeletonWithShine className="h-10 w-[180px] rounded-md" />
+                  <SkeletonWithShine className="h-10 w-32 rounded-md" />
+                </div>
+              </div>
+
+              {/* Tabs skeleton */}
+              <div className="mb-6">
+                <div className="flex gap-2 mb-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <SkeletonWithShine
+                      key={i}
+                      className="h-10 w-24 rounded-md"
+                    />
+                  ))}
+                </div>
+
+                {/* KPI Cards skeleton */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <SkeletonStatCard showTrend />
+                  <SkeletonStatCard showTrend />
+                  <SkeletonStatCard showTrend />
+                  <SkeletonStatCard showTrend />
+                </div>
+
+                {/* Charts skeleton */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  <SkeletonCard showHeader contentHeight="h-[300px]" />
+                  <SkeletonCard showHeader contentHeight="h-[300px]" />
+                </div>
+
+                {/* Table skeleton */}
+                <SkeletonCard showHeader contentHeight="h-auto">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3">
+                            <SkeletonWithShine className="h-4 w-20 rounded" />
+                          </th>
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <th key={i} className="text-center p-3">
+                              <SkeletonWithShine className="h-4 w-16 rounded mx-auto" />
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[1, 2, 3].map((row) => (
+                          <SkeletonTableRow key={row} columns={6} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </SkeletonCard>
+              </div>
+            </div>
           </div>
         </div>
       </div>

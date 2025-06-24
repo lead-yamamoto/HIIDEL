@@ -24,8 +24,8 @@ import {
 
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
-import { StoresSkeleton } from "@/components/ui/skeleton";
 import AddStoreDialog from "./add-store-dialog";
+import { LoadingState } from "@/components/ui/loading";
 
 interface Store {
   id: string;
@@ -188,7 +188,7 @@ export default function StoresPage() {
                       console.log("🔄 Store added, refreshing store list...");
                       fetchStores();
                     }}
-                    existingStores={Array.isArray(stores) ? stores : []}
+                    existingStores={stores}
                   />
                 </motion.div>
               )}
@@ -227,7 +227,7 @@ export default function StoresPage() {
             )}
 
             {/* ローディング状態 */}
-            {isLoading && <StoresSkeleton />}
+            {isLoading && <LoadingState message="店舗情報を読み込み中..." />}
 
             {/* 店舗リスト */}
             {isGoogleConnected && !isLoading && stores.length > 0 && (

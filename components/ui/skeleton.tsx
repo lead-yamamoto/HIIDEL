@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import React from "react";
 
+// 基本のスケルトンコンポーネント
 function Skeleton({
   className,
   ...props
@@ -13,368 +14,296 @@ function Skeleton({
   );
 }
 
-// ダッシュボード用スケルトン
-function DashboardSkeleton() {
+// シャインエフェクト付きスケルトン
+function SkeletonWithShine({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Welcome Message */}
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-80" />
-        <Skeleton className="h-4 w-64" />
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-5 w-5 rounded" />
-              </div>
-              <Skeleton className="h-8 w-12 mb-2" />
-              <Skeleton className="h-3 w-24" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="space-y-4">
-        <Skeleton className="h-6 w-40" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="space-y-3">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-48" />
-                  <Skeleton className="h-9 w-20" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Activity Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Unreplied Reviews */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-5 w-5 rounded" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-              <Skeleton className="h-8 w-16" />
-            </div>
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-4 w-4 rounded" />
-                    <Skeleton className="h-4 w-24" />
-                  </div>
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Improvement Feedbacks */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-5 w-5 rounded" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-              <Skeleton className="h-8 w-16" />
-            </div>
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-2/3" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+    <div
+      className={cn("relative overflow-hidden rounded-md bg-muted", className)}
+      {...props}
+    >
+      <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
     </div>
   );
 }
 
-// レビュー一覧用スケルトン
-function ReviewsSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-80" />
-      </div>
+// テキストスケルトン
+interface SkeletonTextProps extends React.HTMLAttributes<HTMLDivElement> {
+  lines?: number;
+  lineHeight?: "sm" | "md" | "lg";
+  lastLineWidth?: string;
+}
 
-      {/* フィルター */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
+function SkeletonText({
+  lines = 1,
+  lineHeight = "md",
+  lastLineWidth = "100%",
+  className,
+  ...props
+}: SkeletonTextProps) {
+  const heights = {
+    sm: "h-3",
+    md: "h-4",
+    lg: "h-5",
+  };
+
+  return (
+    <div className={cn("space-y-2", className)} {...props}>
+      {Array.from({ length: lines }).map((_, index) => (
+        <SkeletonWithShine
+          key={index}
+          className={cn(
+            heights[lineHeight],
+            "rounded",
+            index === lines - 1 && lines > 1 ? `w-[${lastLineWidth}]` : "w-full"
+          )}
+          style={
+            index === lines - 1 && lines > 1
+              ? { width: lastLineWidth }
+              : undefined
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+// アバタースケルトン
+interface SkeletonAvatarProps extends React.HTMLAttributes<HTMLDivElement> {
+  size?: "sm" | "md" | "lg" | "xl";
+  shape?: "circle" | "square";
+}
+
+function SkeletonAvatar({
+  size = "md",
+  shape = "circle",
+  className,
+  ...props
+}: SkeletonAvatarProps) {
+  const sizes = {
+    sm: "h-8 w-8",
+    md: "h-10 w-10",
+    lg: "h-12 w-12",
+    xl: "h-16 w-16",
+  };
+
+  return (
+    <SkeletonWithShine
+      className={cn(
+        sizes[size],
+        shape === "circle" ? "rounded-full" : "rounded-md",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+// カードスケルトン
+interface SkeletonCardProps extends React.HTMLAttributes<HTMLDivElement> {
+  showHeader?: boolean;
+  showFooter?: boolean;
+  headerHeight?: string;
+  contentHeight?: string;
+  footerHeight?: string;
+}
+
+function SkeletonCard({
+  showHeader = true,
+  showFooter = false,
+  headerHeight = "h-16",
+  contentHeight = "h-32",
+  footerHeight = "h-12",
+  className,
+  ...props
+}: SkeletonCardProps) {
+  return (
+    <div
+      className={cn("rounded-lg border bg-card p-6 space-y-4", className)}
+      {...props}
+    >
+      {showHeader && (
+        <div className="space-y-2">
+          <SkeletonWithShine className="h-6 w-1/3 rounded" />
+          <SkeletonWithShine className="h-4 w-2/3 rounded" />
+        </div>
+      )}
+      <SkeletonWithShine className={cn(contentHeight, "w-full rounded")} />
+      {showFooter && (
+        <SkeletonWithShine className={cn(footerHeight, "w-full rounded")} />
+      )}
+    </div>
+  );
+}
+
+// ボタンスケルトン
+interface SkeletonButtonProps extends React.HTMLAttributes<HTMLDivElement> {
+  size?: "sm" | "md" | "lg";
+  variant?: "default" | "outline" | "ghost";
+}
+
+function SkeletonButton({
+  size = "md",
+  variant = "default",
+  className,
+  ...props
+}: SkeletonButtonProps) {
+  const sizes = {
+    sm: "h-8 w-20",
+    md: "h-10 w-24",
+    lg: "h-12 w-32",
+  };
+
+  const variants = {
+    default: "bg-muted",
+    outline: "bg-transparent border-2 border-muted",
+    ghost: "bg-muted/50",
+  };
+
+  return (
+    <SkeletonWithShine
+      className={cn(sizes[size], variants[variant], "rounded-md", className)}
+      {...props}
+    />
+  );
+}
+
+// テーブル行スケルトン
+interface SkeletonTableRowProps
+  extends React.HTMLAttributes<HTMLTableRowElement> {
+  columns?: number;
+  showActions?: boolean;
+}
+
+function SkeletonTableRow({
+  columns = 4,
+  showActions = false,
+  className,
+  ...props
+}: SkeletonTableRowProps) {
+  return (
+    <tr className={cn("border-b", className)} {...props}>
+      {Array.from({ length: columns }).map((_, index) => (
+        <td key={index} className="p-4">
+          <SkeletonWithShine className="h-4 w-full rounded" />
+        </td>
+      ))}
+      {showActions && (
+        <td className="p-4">
+          <div className="flex gap-2 justify-end">
+            <SkeletonWithShine className="h-8 w-8 rounded" />
+            <SkeletonWithShine className="h-8 w-8 rounded" />
           </div>
-        </CardContent>
-      </Card>
+        </td>
+      )}
+    </tr>
+  );
+}
 
-      {/* アコーディオン形式のレビュー */}
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-4 w-64" />
-        </CardHeader>
-        <CardContent className="p-0">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="border-b last:border-b-0">
-              {/* アコーディオンヘッダー */}
-              <div className="px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-8 w-8 rounded-lg" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-5 w-32" />
-                      <Skeleton className="h-4 w-48" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Skeleton className="h-6 w-16 rounded-full" />
-                    <Skeleton className="h-6 w-20 rounded-full" />
-                  </div>
-                </div>
-              </div>
+// 統計カードスケルトン
+interface SkeletonStatCardProps extends React.HTMLAttributes<HTMLDivElement> {
+  showIcon?: boolean;
+  showTrend?: boolean;
+}
+
+function SkeletonStatCard({
+  showIcon = true,
+  showTrend = false,
+  className,
+  ...props
+}: SkeletonStatCardProps) {
+  return (
+    <div className={cn("rounded-lg border bg-card p-6", className)} {...props}>
+      <div className="flex items-center justify-between mb-4">
+        <SkeletonText lines={1} lineHeight="sm" className="w-1/2" />
+        {showIcon && <SkeletonWithShine className="h-8 w-8 rounded" />}
+      </div>
+      <SkeletonWithShine className="h-8 w-24 rounded mb-2" />
+      {showTrend && (
+        <div className="flex items-center gap-2">
+          <SkeletonWithShine className="h-4 w-4 rounded" />
+          <SkeletonText lines={1} lineHeight="sm" className="w-16" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// リストアイテムスケルトン
+interface SkeletonListItemProps extends React.HTMLAttributes<HTMLDivElement> {
+  showAvatar?: boolean;
+  showDescription?: boolean;
+  showActions?: boolean;
+}
+
+function SkeletonListItem({
+  showAvatar = true,
+  showDescription = true,
+  showActions = false,
+  className,
+  ...props
+}: SkeletonListItemProps) {
+  return (
+    <div
+      className={cn("flex items-start gap-4 p-4 rounded-lg", className)}
+      {...props}
+    >
+      {showAvatar && <SkeletonAvatar size="md" />}
+      <div className="flex-1 space-y-2">
+        <SkeletonText lines={1} lineHeight="md" className="w-1/3" />
+        {showDescription && (
+          <SkeletonText lines={2} lineHeight="sm" lastLineWidth="80%" />
+        )}
+      </div>
+      {showActions && (
+        <div className="flex gap-2">
+          <SkeletonButton size="sm" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// グラフスケルトン
+interface SkeletonChartProps extends React.HTMLAttributes<HTMLDivElement> {
+  height?: string;
+  showLegend?: boolean;
+}
+
+function SkeletonChart({
+  height = "h-64",
+  showLegend = true,
+  className,
+  ...props
+}: SkeletonChartProps) {
+  return (
+    <div className={cn("space-y-4", className)} {...props}>
+      {showLegend && (
+        <div className="flex gap-4">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <SkeletonWithShine className="h-3 w-3 rounded-full" />
+              <SkeletonText lines={1} lineHeight="sm" className="w-16" />
             </div>
           ))}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// 分析ページ用スケルトン
-function AnalyticsSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-4 w-72" />
-      </div>
-
-      {/* フィルター */}
-      <div className="flex gap-4">
-        <Skeleton className="h-10 w-32" />
-        <Skeleton className="h-10 w-40" />
-      </div>
-
-      {/* 統計カード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-4 w-4 rounded" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-12 mb-2" />
-              <Skeleton className="h-3 w-16" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* タブ */}
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-24" />
-          ))}
         </div>
-
-        {/* グラフエリア */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-5 w-48" />
-                <Skeleton className="h-4 w-32" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-80 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 店舗一覧用スケルトン
-function StoresSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="flex justify-between items-center">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-4 w-64" />
-        </div>
-        <Skeleton className="h-10 w-32" />
-      </div>
-
-      {/* 店舗カード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-12 w-12 rounded-lg" />
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-12" />
-                </div>
-                <div className="flex justify-between">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-16" />
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <Skeleton className="h-8 w-20" />
-                  <Skeleton className="h-8 w-24" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// QRコード一覧用スケルトン
-function QRCodesSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="flex justify-between items-center">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-4 w-72" />
-        </div>
-        <Skeleton className="h-10 w-32" />
-      </div>
-
-      {/* QRコードカード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-                <Skeleton className="h-6 w-16 rounded-full" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center space-y-4">
-                <Skeleton className="h-48 w-48 rounded-lg" />
-                <div className="space-y-2 w-full">
-                  <Skeleton className="h-4 w-full" />
-                  <div className="flex gap-2">
-                    <Skeleton className="h-8 w-24" />
-                    <Skeleton className="h-8 w-20" />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// アンケート一覧用スケルトン
-function SurveysSkeleton() {
-  return (
-    <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="flex justify-between items-center">
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-36" />
-          <Skeleton className="h-4 w-80" />
-        </div>
-        <Skeleton className="h-10 w-36" />
-      </div>
-
-      {/* アンケートカード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Skeleton className="h-6 w-48" />
-                  <Skeleton className="h-4 w-32" />
-                </div>
-                <Skeleton className="h-6 w-16 rounded-full" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-                <div className="flex justify-between text-sm">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-16" />
-                </div>
-                <div className="flex gap-2">
-                  <Skeleton className="h-8 w-20" />
-                  <Skeleton className="h-8 w-24" />
-                  <Skeleton className="h-8 w-16" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      )}
+      <SkeletonWithShine className={cn(height, "w-full rounded")} />
     </div>
   );
 }
 
 export {
   Skeleton,
-  DashboardSkeleton,
-  ReviewsSkeleton,
-  AnalyticsSkeleton,
-  StoresSkeleton,
-  QRCodesSkeleton,
-  SurveysSkeleton,
+  SkeletonWithShine,
+  SkeletonText,
+  SkeletonAvatar,
+  SkeletonCard,
+  SkeletonButton,
+  SkeletonTableRow,
+  SkeletonStatCard,
+  SkeletonListItem,
+  SkeletonChart,
 };

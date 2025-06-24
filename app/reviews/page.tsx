@@ -36,7 +36,6 @@ import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/ui/loading";
-import { ReviewsSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -55,6 +54,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  SkeletonCard,
+  SkeletonText,
+  SkeletonWithShine,
+} from "@/components/ui/skeleton";
 
 interface Review {
   id: string;
@@ -572,7 +576,65 @@ export default function ReviewsPage() {
             )}
 
             {/* ローディング状態 */}
-            {isGoogleConnected && isLoading && <ReviewsSkeleton />}
+            {isGoogleConnected && isLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="overflow-hidden shadow-lg">
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <SkeletonWithShine className="h-5 w-5 rounded" />
+                      <SkeletonText
+                        lines={1}
+                        lineHeight="md"
+                        className="w-48"
+                      />
+                    </div>
+                    <SkeletonText
+                      lines={1}
+                      lineHeight="sm"
+                      className="w-64 mt-2"
+                    />
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y">
+                      {/* 3つの店舗スケルトン */}
+                      {[1, 2, 3].map((index) => (
+                        <div key={index} className="px-6 py-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <SkeletonWithShine className="h-10 w-10 rounded-lg" />
+                              <div>
+                                <SkeletonText
+                                  lines={1}
+                                  lineHeight="md"
+                                  className="w-32 mb-2"
+                                />
+                                <div className="flex items-center gap-3">
+                                  <SkeletonText
+                                    lines={1}
+                                    lineHeight="sm"
+                                    className="w-20"
+                                  />
+                                  <SkeletonText
+                                    lines={1}
+                                    lineHeight="sm"
+                                    className="w-16"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <SkeletonWithShine className="h-6 w-20 rounded-full" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
 
             {/* レビュー一覧（店舗ごとにアコーディオン） */}
             {isGoogleConnected && !isLoading && !error && (
