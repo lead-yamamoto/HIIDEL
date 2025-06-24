@@ -18,30 +18,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
     console.log("🔑 [Debug] API keys check:", {
-      openai: !!openaiApiKey,
       gemini: !!geminiApiKey,
-      openaiLength: openaiApiKey?.length,
       geminiLength: geminiApiKey?.length,
     });
 
     return NextResponse.json({
       success: true,
+      message: "Using Google Gemini API (Free)",
       apiKeys: {
-        openai: {
-          exists: !!openaiApiKey,
-          length: openaiApiKey?.length || 0,
-          prefix: openaiApiKey ? openaiApiKey.substring(0, 7) + "..." : null,
-        },
         gemini: {
           exists: !!geminiApiKey,
           length: geminiApiKey?.length || 0,
           prefix: geminiApiKey ? geminiApiKey.substring(0, 7) + "..." : null,
+          status: geminiApiKey
+            ? "Available (Free 60 requests/month)"
+            : "Not configured",
         },
       },
+      note: "OpenAI is disabled by user preference - using free Gemini API",
       environment: process.env.NODE_ENV,
       timestamp: new Date().toISOString(),
     });

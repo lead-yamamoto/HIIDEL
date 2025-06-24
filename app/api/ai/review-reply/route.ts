@@ -56,39 +56,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
     console.log("🔑 [AI Review Reply] API keys check:", {
-      openai: !!openaiApiKey,
       gemini: !!geminiApiKey,
     });
 
-    // OpenAI GPT-4oを優先的に使用
-    if (openaiApiKey) {
-      try {
-        console.log("🚀 [AI Review Reply] Using OpenAI GPT-4o");
-        const result = await generateOpenAIReply(
-          reviewText,
-          rating,
-          finalBusinessName,
-          businessType,
-          openaiApiKey
-        );
-        console.log(
-          "✅ [AI Review Reply] OpenAI response generated successfully"
-        );
-        return NextResponse.json(result);
-      } catch (error) {
-        console.error("❌ [AI Review Reply] OpenAI failed:", error);
-        // Geminiにフォールバック
-      }
-    }
-
-    // Google Gemini APIにフォールバック
+    // Google Gemini APIを最優先で使用（無料）
     if (geminiApiKey) {
       try {
-        console.log("🔄 [AI Review Reply] Falling back to Gemini");
+        console.log("🚀 [AI Review Reply] Using Google Gemini (Free)");
         const result = await generateGeminiReply(
           reviewText,
           rating,
@@ -102,11 +79,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
       } catch (error) {
         console.error("❌ [AI Review Reply] Gemini failed:", error);
+        // テスト返信にフォールバック
       }
     }
 
-    // APIキーが設定されていない場合はテスト返信
-    console.log("⚠️ [AI Review Reply] No API keys available, using test reply");
+    // Gemini APIが利用できない場合はテスト返信
+    console.log("⚠️ [AI Review Reply] Gemini not available, using test reply");
     const result = generateTestReply(reviewText, rating, finalBusinessName);
     return NextResponse.json(result);
   } catch (error) {
@@ -121,8 +99,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// OpenAI GPT-4oを使用した返信生成
-async function generateOpenAIReply(
+// Google Gemini APIを使用した返信生成（無料）
+
+// Google Gemini APIを使用した返信生成
+async function generateGeminiReply(
   reviewText: string,
   rating: number,
   businessName: string,
@@ -133,7 +113,7 @@ async function generateOpenAIReply(
   const responseType = isPositive ? "感謝" : "改善への取り組み";
 
   const prompt = `
-あなたは ${businessName} の${businessType}の顧客サービス担当者です。
+あなたは ${businessName} の${businessType}の優秀な顧客サービス担当者です。
 以下のGoogleレビューに対して、プロフェッショナルで心のこもった返信を日本語で作成してください。
 
 レビュー内容: "${reviewText}"
@@ -150,58 +130,58 @@ async function generateOpenAIReply(
 - 顧客の具体的なコメントに触れる
 - ${
     !isPositive
-      ? "可能であれば連絡先や改善策を提示"
+      ? "可能であれば改善策や連絡先を提示"
       : "また来ていただきたいという気持ちを込める"
   }
 - 自然で温かみのある文章にする
+- 企業的すぎず、人間味のある返信にする
 
-返信のみを出力してください。引用符は不要です。
+返信のみを出力してください。引用符や余計な説明は不要です。
 `;
 
   // 最大3回リトライ
   let lastError: any = null;
   for (let i = 0; i < 3; i++) {
     try {
-      console.log(`🔄 [OpenAI] Attempt ${i + 1}/3`);
+      console.log(`🔄 [Gemini] Attempt ${i + 1}/3`);
 
       const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model: "gpt-4o", // GPT-4oを使用
-            messages: [
+            contents: [
               {
-                role: "system",
-                content:
-                  "あなたは優秀な顧客サービス担当者で、レビューへの心のこもった返信作成の専門家です。常にプロフェッショナルで温かく、顧客に寄り添う返信を作成します。",
-              },
-              {
-                role: "user",
-                content: prompt,
+                parts: [
+                  {
+                    text: prompt,
+                  },
+                ],
               },
             ],
-            max_tokens: 300,
-            temperature: 0.7,
-            top_p: 0.9,
+            generationConfig: {
+              maxOutputTokens: 250,
+              temperature: 0.7,
+              topP: 0.8,
+            },
           }),
         }
       );
 
       if (response.ok) {
         const data = await response.json();
-        const replyText = data.choices[0]?.message?.content?.trim();
+        const replyText =
+          data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
         if (!replyText) {
-          throw new Error("OpenAIからの返信が空でした");
+          throw new Error("Geminiからの返信が空でした");
         }
 
         console.log(
-          `✅ [OpenAI] Generated reply (${replyText.length} chars):`,
+          `✅ [Gemini] Generated reply (${replyText.length} chars):`,
           replyText.substring(0, 100) + "..."
         );
 
@@ -212,137 +192,42 @@ async function generateOpenAIReply(
             rating: rating,
             isPositive: isPositive,
             responseType: responseType,
-            provider: "OpenAI",
-            model: "gpt-4o",
+            provider: "Google Gemini",
+            model: "gemini-pro",
             attempt: i + 1,
-            tokensUsed: data.usage?.total_tokens || 0,
+            isFree: true,
           },
         };
       } else if (response.status === 429) {
         // レート制限の場合は少し待ってリトライ
         console.log(
-          `⏳ [OpenAI] Rate limited, waiting before retry ${i + 1}/3`
+          `⏳ [Gemini] Rate limited, waiting before retry ${i + 1}/3`
         );
         await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1))); // 指数バックオフ
-        lastError = new Error(`OpenAI API レート制限: ${response.statusText}`);
+        lastError = new Error(`Gemini API レート制限: ${response.statusText}`);
         continue;
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error(`❌ [OpenAI] API error:`, {
+        console.error(`❌ [Gemini] API error:`, {
           status: response.status,
           error: errorData,
         });
         throw new Error(
-          `OpenAI API error: ${response.status} - ${
+          `Gemini API error: ${response.status} - ${
             errorData.error?.message || response.statusText
           }`
         );
       }
     } catch (error) {
       lastError = error;
-      console.error(`❌ [OpenAI] Attempt ${i + 1} failed:`, error);
+      console.error(`❌ [Gemini] Attempt ${i + 1} failed:`, error);
       if (i === 2) break; // 最後の試行の場合はbreak
       await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1))); // 待機してリトライ
     }
   }
 
   // 全て失敗した場合はエラーをthrow
-  throw lastError || new Error("OpenAI API: 全てのリトライが失敗しました");
-}
-
-// Google Gemini APIを使用した返信生成
-async function generateGeminiReply(
-  reviewText: string,
-  rating: number,
-  businessName: string,
-  businessType: string = "ビジネス",
-  apiKey: string
-) {
-  const isPositive = rating >= 4;
-  const responseType = isPositive ? "感謝" : "改善への取り組み";
-
-  const prompt = `
-あなたは ${businessName} の${businessType}の顧客サービス担当者です。
-以下のGoogleレビューに対して、${responseType}を示す丁寧で心のこもった返信を日本語で作成してください。
-
-レビュー内容: "${reviewText}"
-評価: ${rating}/5
-
-返信の条件:
-- 150文字以内
-- 敬語を使用
-- ${
-    isPositive
-      ? "感謝の気持ちを表現"
-      : "問題を真摯に受け止め、改善への意欲を示す"
-  }
-- 顧客の具体的なコメントに言及
-- ${
-    !isPositive
-      ? "今後の改善策や連絡先を提示"
-      : "今後ともよろしくお願いしますという気持ちを込める"
-  }
-
-返信のみを出力してください。
-`;
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 200,
-          temperature: 0.7,
-        },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      `Gemini API error: ${response.status} - ${
-        errorData.error?.message || response.statusText
-      }`
-    );
-  }
-
-  const data = await response.json();
-  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-  if (!replyText) {
-    throw new Error("Geminiからの返信が空でした");
-  }
-
-  console.log(
-    `✅ [Gemini] Generated reply (${replyText.length} chars):`,
-    replyText.substring(0, 100) + "..."
-  );
-
-  return {
-    success: true,
-    reply: replyText,
-    metadata: {
-      rating: rating,
-      isPositive: isPositive,
-      responseType: responseType,
-      provider: "Google Gemini",
-      model: "gemini-pro",
-    },
-  };
+  throw lastError || new Error("Gemini API: 全てのリトライが失敗しました");
 }
 
 // テスト返信生成
@@ -365,8 +250,9 @@ function generateTestReply(
       rating: rating,
       isPositive: isPositive,
       responseType: isPositive ? "感謝" : "改善への取り組み",
-      provider: "Test",
+      provider: "Test (Gemini API not available)",
       isTestReply: true,
+      isFree: true,
     },
   };
 }
