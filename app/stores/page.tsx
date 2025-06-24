@@ -25,7 +25,7 @@ import {
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { StoresSkeleton } from "@/components/ui/skeleton";
-import { AddStoreDialog } from "./add-store-dialog";
+import AddStoreDialog from "./add-store-dialog";
 
 interface Store {
   id: string;
@@ -188,7 +188,7 @@ export default function StoresPage() {
                       console.log("🔄 Store added, refreshing store list...");
                       fetchStores();
                     }}
-                    existingStores={stores}
+                    existingStores={Array.isArray(stores) ? stores : []}
                   />
                 </motion.div>
               )}
