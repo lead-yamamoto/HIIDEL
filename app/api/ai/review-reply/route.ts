@@ -32,19 +32,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 環境変数の詳細チェック
     const openaiApiKey = process.env.OPENAI_API_KEY;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
-    console.log("API キー確認:", {
-      openai: !!openaiApiKey,
-      openaiLength: openaiApiKey?.length || 0,
-      gemini: !!geminiApiKey,
-      geminiLength: geminiApiKey?.length || 0,
+    // よくある環境変数名のバリエーションもチェック
+    const possibleOpenAIKeys = [
+      process.env.OPENAI_API_KEY,
+      process.env.OPENAI_KEY,
+      process.env.OPEN_AI_API_KEY,
+      process.env.OPENAI_SECRET_KEY,
+    ].filter(Boolean);
+
+    const possibleGeminiKeys = [
+      process.env.GEMINI_API_KEY,
+      process.env.GOOGLE_AI_API_KEY,
+      process.env.GOOGLE_GEMINI_API_KEY,
+      process.env.GEMINI_KEY,
+    ].filter(Boolean);
+
+    console.log("🔍 環境変数デバッグ:", {
+      OPENAI_API_KEY: {
+        exists: !!openaiApiKey,
+        length: openaiApiKey?.length || 0,
+        startsWithSk: openaiApiKey?.startsWith("sk-") || false,
+        firstChars: openaiApiKey
+          ? openaiApiKey.substring(0, 8) + "..."
+          : "なし",
+      },
+      GEMINI_API_KEY: {
+        exists: !!geminiApiKey,
+        length: geminiApiKey?.length || 0,
+        firstChars: geminiApiKey
+          ? geminiApiKey.substring(0, 8) + "..."
+          : "なし",
+      },
+      possibleOpenAIKeys: possibleOpenAIKeys.length,
+      possibleGeminiKeys: possibleGeminiKeys.length,
       NODE_ENV: process.env.NODE_ENV,
+      VERCEL: process.env.VERCEL,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      allEnvKeys: Object.keys(process.env)
+        .filter(
+          (key) =>
+            key.includes("OPENAI") ||
+            key.includes("GEMINI") ||
+            key.includes("API") ||
+            key.includes("KEY")
+        )
+        .slice(0, 10), // 最初の10個だけ表示
     });
 
     // OpenAI APIを試す
-    if (openaiApiKey) {
+    if (openaiApiKey && openaiApiKey.length > 10) {
       try {
         console.log("🤖 OpenAI APIで返信を生成中...");
         const result = await generateOpenAIReply(
@@ -60,10 +100,15 @@ export async function POST(request: NextRequest) {
         console.error("OpenAI API失敗:", error);
         // Geminiにフォールバック
       }
+    } else {
+      console.log("⚠️ OpenAI APIキーが無効:", {
+        exists: !!openaiApiKey,
+        length: openaiApiKey?.length || 0,
+      });
     }
 
     // Google Gemini APIを試す
-    if (geminiApiKey) {
+    if (geminiApiKey && geminiApiKey.length > 10) {
       try {
         console.log("🤖 Gemini APIで返信を生成中...");
         const result = await generateGeminiReply(
@@ -79,15 +124,26 @@ export async function POST(request: NextRequest) {
         console.error("Gemini API失敗:", error);
         // テスト返信にフォールバック
       }
+    } else {
+      console.log("⚠️ Gemini APIキーが無効:", {
+        exists: !!geminiApiKey,
+        length: geminiApiKey?.length || 0,
+      });
     }
 
     // APIキーが設定されていない場合はテスト返信
-    console.log("⚠️ APIキーが未設定のため、テスト返信を生成します");
+    console.log("⚠️ 有効なAPIキーが見つからないため、テスト返信を生成します");
     const result = generateTestReply(reviewText, rating, businessName);
     return NextResponse.json({
       ...result,
       warning:
-        "APIキーが設定されていないため、テスト返信を使用しています。本番環境では OPENAI_API_KEY または GEMINI_API_KEY を設定してください。",
+        "APIキーが設定されていないか無効のため、テスト返信を使用しています。本番環境では OPENAI_API_KEY または GEMINI_API_KEY を正しく設定してください。",
+      debug: {
+        openaiExists: !!openaiApiKey,
+        openaiLength: openaiApiKey?.length || 0,
+        geminiExists: !!geminiApiKey,
+        geminiLength: geminiApiKey?.length || 0,
+      },
     });
   } catch (error) {
     console.error("AI review reply error:", error);
