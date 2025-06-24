@@ -91,9 +91,14 @@ export default function SettingsPage() {
         },
       ];
 
+      console.log("🧪 AI返信テスト開始:", testReviews);
+
       const results = [];
 
       for (const testReview of testReviews) {
+        console.log("📤 送信データ:", testReview);
+        console.log("📤 JSONデータ:", JSON.stringify(testReview));
+
         const response = await fetch("/api/ai/review-reply", {
           method: "POST",
           headers: {
@@ -102,19 +107,26 @@ export default function SettingsPage() {
           body: JSON.stringify(testReview),
         });
 
+        console.log("📥 レスポンス状態:", response.status, response.statusText);
+
         if (response.ok) {
           const data = await response.json();
+          console.log("✅ 成功レスポンス:", data);
           results.push({
             ...testReview,
             reply: data.reply,
             metadata: data.metadata,
             warning: data.warning,
+            debug: data.debug,
           });
         } else {
           const errorData = await response.json();
+          console.error("❌ エラーレスポンス:", errorData);
+          console.error("エラー詳細:", errorData);
           results.push({
             ...testReview,
             error: errorData.error,
+            errorDetails: errorData.details,
           });
         }
       }
@@ -123,7 +135,12 @@ export default function SettingsPage() {
       setShowTestDialog(true);
     } catch (error) {
       console.error("AI返信テストエラー:", error);
-      setTestResult([{ error: "テスト中にエラーが発生しました" }]);
+      setTestResult([
+        {
+          error: "テスト中にエラーが発生しました",
+          details: error instanceof Error ? error.message : String(error),
+        },
+      ]);
       setShowTestDialog(true);
     } finally {
       setIsTestingAI(false);
@@ -691,11 +708,43 @@ export default function SettingsPage() {
               {testResult.map((result: any, index: number) => (
                 <div key={index} className="border rounded-lg p-4">
                   {result.error ? (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>エラー</AlertTitle>
-                      <AlertDescription>{result.error}</AlertDescription>
-                    </Alert>
+                    <div className="space-y-4">
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>エラー</AlertTitle>
+                        <AlertDescription>{result.error}</AlertDescription>
+                      </Alert>
+
+                      {/* エラーの詳細情報 */}
+                      {result.errorDetails && (
+                        <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded-md text-sm border border-red-200 dark:border-red-800">
+                          <h5 className="font-medium mb-2">エラー詳細:</h5>
+                          <pre className="text-xs text-muted-foreground overflow-x-auto">
+                            {JSON.stringify(result.errorDetails, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* 送信したデータ */}
+                      <div className="bg-muted/50 p-3 rounded-md text-sm">
+                        <h5 className="font-medium mb-2">送信したデータ:</h5>
+                        <div className="space-y-1 text-xs">
+                          <div>reviewText: "{result.reviewText}"</div>
+                          <div>rating: {result.rating}</div>
+                          <div>businessName: "{result.businessName}"</div>
+                          <div>businessType: "{result.businessType}"</div>
+                        </div>
+                      </div>
+
+                      {result.details && (
+                        <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-md text-sm border border-yellow-200 dark:border-yellow-800">
+                          <h5 className="font-medium mb-2">追加詳細:</h5>
+                          <div className="text-xs text-muted-foreground">
+                            {result.details}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <>
                       {/* テスト用レビュー */}

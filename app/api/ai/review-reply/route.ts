@@ -15,17 +15,75 @@ export async function POST(request: NextRequest) {
       hasReviewText: !!reviewText,
       hasRating: !!rating,
       hasBusinessName: !!businessName,
+      reviewTextType: typeof reviewText,
+      reviewTextLength: reviewText?.length || 0,
+      reviewTextTrimmed: reviewText?.trim?.() || "",
+      reviewTextTrimmedLength: reviewText?.trim?.()?.length || 0,
     });
 
-    if (!reviewText || !rating || !businessName) {
-      console.error("パラメータ不足:", { reviewText, rating, businessName });
+    // より詳細なパラメータ検証
+    const isValidReviewText =
+      reviewText &&
+      typeof reviewText === "string" &&
+      reviewText.trim().length > 0;
+
+    const isValidRating =
+      rating && typeof rating === "number" && rating >= 1 && rating <= 5;
+
+    const isValidBusinessName =
+      businessName &&
+      typeof businessName === "string" &&
+      businessName.trim().length > 0;
+
+    console.log("詳細検証結果:", {
+      isValidReviewText,
+      isValidRating,
+      isValidBusinessName,
+    });
+
+    if (!isValidReviewText || !isValidRating || !isValidBusinessName) {
+      console.error("パラメータ検証エラー:", {
+        reviewText: {
+          value: reviewText,
+          type: typeof reviewText,
+          valid: isValidReviewText,
+        },
+        rating: {
+          value: rating,
+          type: typeof rating,
+          valid: isValidRating,
+        },
+        businessName: {
+          value: businessName,
+          type: typeof businessName,
+          valid: isValidBusinessName,
+        },
+      });
       return NextResponse.json(
         {
-          error: "必要なパラメータが不足しています",
+          error:
+            "必要なパラメータが不足またはしており、正しく設定されていません",
           details: {
-            reviewText: !!reviewText,
-            rating: !!rating,
-            businessName: !!businessName,
+            reviewText: isValidReviewText,
+            rating: isValidRating,
+            businessName: isValidBusinessName,
+          },
+          validation: {
+            reviewText: {
+              received: reviewText,
+              type: typeof reviewText,
+              length: reviewText?.length || 0,
+              trimmedLength: reviewText?.trim?.()?.length || 0,
+            },
+            rating: {
+              received: rating,
+              type: typeof rating,
+            },
+            businessName: {
+              received: businessName,
+              type: typeof businessName,
+              length: businessName?.length || 0,
+            },
           },
         },
         { status: 400 }
