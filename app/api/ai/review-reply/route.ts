@@ -155,7 +155,19 @@ export async function POST(request: NextRequest) {
         console.log("✅ OpenAI API成功");
         return NextResponse.json(result);
       } catch (error) {
-        console.error("OpenAI API失敗:", error);
+        console.error("❌ OpenAI API失敗:", error);
+        console.error("OpenAI APIエラー詳細:", {
+          message: error instanceof Error ? error.message : String(error),
+          name: error instanceof Error ? error.name : "Unknown",
+          stack: error instanceof Error ? error.stack : "No stack",
+          cause: error instanceof Error ? error.cause : undefined,
+          // OpenAI特有のエラー情報
+          status: (error as any)?.status,
+          statusText: (error as any)?.statusText,
+          code: (error as any)?.code,
+          type: (error as any)?.type,
+          param: (error as any)?.param,
+        });
         // Geminiにフォールバック
       }
     } else {
@@ -179,7 +191,19 @@ export async function POST(request: NextRequest) {
         console.log("✅ Gemini API成功");
         return NextResponse.json(result);
       } catch (error) {
-        console.error("Gemini API失敗:", error);
+        console.error("❌ Gemini API失敗:", error);
+        console.error("Gemini APIエラー詳細:", {
+          message: error instanceof Error ? error.message : String(error),
+          name: error instanceof Error ? error.name : "Unknown",
+          stack: error instanceof Error ? error.stack : "No stack",
+          cause: error instanceof Error ? error.cause : undefined,
+          // Google API特有のエラー情報
+          status: (error as any)?.status,
+          statusText: (error as any)?.statusText,
+          code: (error as any)?.code,
+          details: (error as any)?.details,
+          error_code: (error as any)?.error_code,
+        });
         // テスト返信にフォールバック
       }
     } else {
@@ -195,12 +219,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...result,
       warning:
-        "APIキーが設定されていないか無効のため、テスト返信を使用しています。本番環境では OPENAI_API_KEY または GEMINI_API_KEY を正しく設定してください。",
+        "有効なAI APIが利用できないため、テスト返信を使用しています。考えられる原因：\n" +
+        "1. APIキーが設定されていない\n" +
+        "2. APIの使用制限に達している\n" +
+        "3. 課金設定が必要（OpenAI API、Google Gemini API）\n" +
+        "4. APIキーに十分な権限がない\n\n" +
+        "OpenAI Platform (https://platform.openai.com/usage) や Google AI Studio で使用状況を確認してください。",
       debug: {
         openaiExists: !!openaiApiKey,
         openaiLength: openaiApiKey?.length || 0,
+        openaiValid: openaiApiKey && openaiApiKey.length > 10,
         geminiExists: !!geminiApiKey,
         geminiLength: geminiApiKey?.length || 0,
+        geminiValid: geminiApiKey && geminiApiKey.length > 10,
+        recommendation: "APIの課金設定または使用制限を確認してください",
       },
     });
   } catch (error) {
