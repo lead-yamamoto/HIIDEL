@@ -27,39 +27,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log("🧪 [Gemini Test] Testing Gemini API...");
-
-    const testPrompt =
-      "Hello! Please reply with '正常に動作しています' in Japanese.";
+    console.log("📋 [Gemini Models] Fetching available models...");
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiApiKey}`,
       {
-        method: "POST",
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: testPrompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            maxOutputTokens: 50,
-            temperature: 0.3,
-          },
-        }),
       }
     );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("❌ [Gemini Test] API error:", {
+      console.error("❌ [Gemini Models] API error:", {
         status: response.status,
         error: errorData,
       });
@@ -76,25 +58,39 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    console.log("✅ [Gemini Models] Models fetched successfully");
 
-    console.log("✅ [Gemini Test] API test successful:", replyText);
+    // モデル情報を整理
+    const models =
+      data.models?.map((model: any) => ({
+        name: model.name,
+        displayName: model.displayName,
+        description: model.description,
+        supportedGenerationMethods: model.supportedGenerationMethods,
+        inputTokenLimit: model.inputTokenLimit,
+        outputTokenLimit: model.outputTokenLimit,
+      })) || [];
+
+    // generateContentをサポートするモデルのみフィルタ
+    const generateContentModels = models.filter((model: any) =>
+      model.supportedGenerationMethods?.includes("generateContent")
+    );
 
     return NextResponse.json({
       success: true,
-      message: "Gemini API is working correctly",
-      response: replyText,
-      model: "gemini-2.0-flash",
-      isFree: true,
-      quotaInfo: "Free tier: 60 requests per minute",
+      message: "Available Gemini models",
+      totalModels: models.length,
+      generateContentModels: generateContentModels.length,
+      models: models,
+      generateContentSupportedModels: generateContentModels,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("💥 [Gemini Test] Unexpected error:", error);
+    console.error("💥 [Gemini Models] Unexpected error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "Gemini API test failed",
+        error: "Failed to fetch Gemini models",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
