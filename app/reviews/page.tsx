@@ -147,6 +147,13 @@ export default function ReviewsPage() {
     }
   };
 
+  // selectedStoreが変更された時にレビューを再取得
+  useEffect(() => {
+    if (isGoogleConnected) {
+      fetchReviews();
+    }
+  }, [selectedStore, isGoogleConnected]);
+
   const fetchReviews = async () => {
     setIsLoading(true);
     setError(null);
@@ -194,8 +201,12 @@ export default function ReviewsPage() {
 
   // 店舗のリストを取得
   const stores = useMemo(() => {
-    const uniqueStores = Array.from(new Set(reviews.map((r) => r.storeName)));
-    return ["all", ...uniqueStores];
+    const uniqueStores = Array.from(
+      new Map(
+        reviews.map((r) => [r.storeId, { id: r.storeId, name: r.storeName }])
+      ).values()
+    );
+    return uniqueStores;
   }, [reviews]);
 
   // フィルタリングされたレビュー
@@ -204,9 +215,7 @@ export default function ReviewsPage() {
 
     // 店舗フィルター
     if (selectedStore !== "all") {
-      filtered = filtered.filter(
-        (review) => review.storeName === selectedStore
-      );
+      filtered = filtered.filter((review) => review.storeId === selectedStore);
     }
 
     // 検索フィルター
@@ -416,7 +425,10 @@ export default function ReviewsPage() {
               >
                 {selectedStore === "all"
                   ? "全店舗のクチコミ一覧"
-                  : `店舗別クチコミ一覧 (${selectedStore})`}
+                  : `店舗別クチコミ一覧 (${
+                      stores.find((s) => s.id === selectedStore)?.name ||
+                      selectedStore
+                    })`}
               </motion.h1>
               {isGoogleConnected && (
                 <div className="flex gap-2">
@@ -529,9 +541,9 @@ export default function ReviewsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">すべての店舗</SelectItem>
-                        {stores.slice(1).map((store) => (
-                          <SelectItem key={store} value={store}>
-                            {store}
+                        {stores.map((store) => (
+                          <SelectItem key={store.id} value={store.id}>
+                            {store.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
