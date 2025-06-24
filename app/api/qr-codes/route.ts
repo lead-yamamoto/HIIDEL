@@ -1,52 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { promises as fs } from "fs";
-import path from "path";
-
-// データファイルのパス
-const QR_CODES_DATA_FILE_PATH = path.join(
-  process.cwd(),
-  "data",
-  "qr-codes.json"
-);
-
-interface QRCode {
-  id: string;
-  storeId: string;
-  userId: string;
-  name: string;
-  type: "review" | "survey" | "contact";
-  url: string;
-  surveyId?: string; // アンケート用の追加フィールド
-  scans: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// QRコードデータを読み込み
-async function loadQRCodes(): Promise<QRCode[]> {
-  try {
-    await fs.mkdir(path.dirname(QR_CODES_DATA_FILE_PATH), { recursive: true });
-    const data = await fs.readFile(QR_CODES_DATA_FILE_PATH, "utf-8");
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
-  }
-}
-
-// QRコードデータを保存
-async function saveQRCodes(qrCodes: QRCode[]): Promise<void> {
-  try {
-    await fs.mkdir(path.dirname(QR_CODES_DATA_FILE_PATH), { recursive: true });
-    await fs.writeFile(
-      QR_CODES_DATA_FILE_PATH,
-      JSON.stringify(qrCodes, null, 2)
-    );
-  } catch (error) {
-    console.error("Failed to save QR codes:", error);
-  }
-}
+import { authOptions } from "../auth/[...nextauth]/route";
+import { db } from "@/lib/database";
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,18 +14,30 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get("storeId") || undefined;
 
-    const qrCodes = await loadQRCodes();
-    const userQRCodes = qrCodes.filter(
-      (qr) => qr.userId === session.user.email
+    console.log(
+      `📋 [GET /api/qr-codes] Fetching QR codes for user: ${session.user.email}, storeId: ${storeId}`
     );
 
-    const filteredQRCodes = storeId
-      ? userQRCodes.filter((qr) => qr.storeId === storeId)
-      : userQRCodes;
+    // データベースの初期化を確認
+    await db.ensureInitialized();
 
-    return NextResponse.json({ qrCodes: filteredQRCodes });
+    // データベースからQRコードを取得
+    const qrCodes = await db.getQRCodes(session.user.email, storeId);
+
+    // Date型をstring型に変換（フロントエンドとの互換性のため）
+    const formattedQRCodes = qrCodes.map((qr) => ({
+      ...qr,
+      createdAt: qr.createdAt.toISOString(),
+      lastScannedAt: qr.lastScannedAt?.toISOString(),
+    }));
+
+    console.log(
+      `✅ [GET /api/qr-codes] Found ${formattedQRCodes.length} QR codes`
+    );
+
+    return NextResponse.json({ qrCodes: formattedQRCodes });
   } catch (error) {
-    console.error("QR Codes GET Error:", error);
+    console.error("❌ [GET /api/qr-codes] Error:", error);
     return NextResponse.json({ error: "内部サーバーエラー" }, { status: 500 });
   }
 }
@@ -86,6 +53,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { storeId, name, type, url, surveyId } = body;
 
+    console.log(`📝 [POST /api/qr-codes] Creating QR code:`, {
+      storeId,
+      name,
+      type,
+      url,
+      surveyId,
+    });
+
     if (!storeId || !name || !type || !url) {
       return NextResponse.json(
         {
@@ -95,29 +70,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 新しいQRコードID生成
-    const newId = `qr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // データベースの初期化を確認
+    await db.ensureInitialized();
 
-    const newQRCode: QRCode = {
-      id: newId,
+    // データベースにQRコードを作成
+    const newQRCode = await db.createQRCode({
       storeId,
       userId: session.user.email,
       name,
       type,
       url,
-      surveyId: surveyId || undefined,
-      scans: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    });
+
+    // Date型をstring型に変換（フロントエンドとの互換性のため）
+    const formattedQRCode = {
+      ...newQRCode,
+      surveyId: surveyId || undefined, // surveyIdは別途追加
+      createdAt: newQRCode.createdAt.toISOString(),
+      updatedAt: newQRCode.createdAt.toISOString(), // updatedAtフィールドも追加
+      lastScannedAt: newQRCode.lastScannedAt?.toISOString(),
     };
 
-    const qrCodes = await loadQRCodes();
-    qrCodes.push(newQRCode);
-    await saveQRCodes(qrCodes);
+    console.log(`✅ [POST /api/qr-codes] QR code created:`, formattedQRCode.id);
 
-    return NextResponse.json({ qrCode: newQRCode }, { status: 201 });
+    return NextResponse.json({ qrCode: formattedQRCode }, { status: 201 });
   } catch (error) {
-    console.error("QR Codes POST Error:", error);
+    console.error("❌ [POST /api/qr-codes] Error:", error);
     return NextResponse.json({ error: "内部サーバーエラー" }, { status: 500 });
   }
 }
@@ -140,24 +118,26 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const qrCodes = await loadQRCodes();
-    const qrIndex = qrCodes.findIndex(
-      (qr) => qr.id === qrId && qr.userId === session.user.email
-    );
+    console.log(`🗑️ [DELETE /api/qr-codes] Deleting QR code: ${qrId}`);
 
-    if (qrIndex === -1) {
+    // データベースの初期化を確認
+    await db.ensureInitialized();
+
+    // データベースからQRコードを削除
+    const success = await db.deleteQRCode(qrId, session.user.email);
+
+    if (!success) {
       return NextResponse.json(
         { error: "QRコードが見つかりません" },
         { status: 404 }
       );
     }
 
-    qrCodes.splice(qrIndex, 1);
-    await saveQRCodes(qrCodes);
+    console.log(`✅ [DELETE /api/qr-codes] QR code deleted: ${qrId}`);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("QR Codes DELETE Error:", error);
+    console.error("❌ [DELETE /api/qr-codes] Error:", error);
     return NextResponse.json({ error: "内部サーバーエラー" }, { status: 500 });
   }
 }
