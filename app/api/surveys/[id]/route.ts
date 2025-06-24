@@ -270,20 +270,10 @@ export async function DELETE(
 
     console.log(`🗑️ Deleting survey: ${surveyId}`);
 
-    // 現在のアンケートを取得して存在確認
-    let surveys = [];
-    try {
-      surveys = await db.getSurveys(userId);
-    } catch (error) {
-      console.error("Failed to get surveys for deletion:", error);
-      return NextResponse.json(
-        { error: "アンケートの削除に失敗しました" },
-        { status: 500 }
-      );
-    }
+    // データベースからアンケートを削除
+    const success = await db.deleteSurvey(surveyId, userId);
 
-    const existingSurvey = surveys.find((s) => s.id === surveyId);
-    if (!existingSurvey) {
+    if (!success) {
       return NextResponse.json(
         { error: "アンケートが見つかりません" },
         { status: 404 }

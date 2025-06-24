@@ -16,6 +16,7 @@ import {
   Settings,
   Trash2,
   Edit,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,16 @@ import {
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { LoadingState } from "@/components/ui/loading";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Survey {
   id: string;
@@ -47,6 +58,9 @@ export default function SurveysPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [surveyToDelete, setSurveyToDelete] = useState<Survey | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingSurveyId, setDeletingSurveyId] = useState<string | null>(null);
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -86,22 +100,36 @@ export default function SurveysPage() {
     // ここにコピー成功時の通知などを追加できます
   };
 
-  const deleteSurvey = async (surveyId: string) => {
-    if (!confirm("このアンケートを削除しますか？")) return;
+  const confirmDeleteSurvey = (survey: Survey) => {
+    setSurveyToDelete(survey);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const deleteSurvey = async () => {
+    if (!surveyToDelete) return;
 
     try {
-      const response = await fetch(`/api/surveys?id=${surveyId}`, {
+      setDeletingSurveyId(surveyToDelete.id);
+      console.log(`🗑️ Deleting survey: ${surveyToDelete.title}`);
+
+      const response = await fetch(`/api/surveys?id=${surveyToDelete.id}`, {
         method: "DELETE",
       });
 
       if (response.ok) {
-        setSurveys(surveys.filter((s) => s.id !== surveyId));
+        console.log("✅ Survey deleted successfully");
+        setSurveys(surveys.filter((s) => s.id !== surveyToDelete.id));
+        setIsDeleteDialogOpen(false);
+        setSurveyToDelete(null);
       } else {
+        console.error("❌ Failed to delete survey");
         alert("削除に失敗しました");
       }
     } catch (error) {
-      console.error("削除エラー:", error);
+      console.error("💥 Error deleting survey:", error);
       alert("削除に失敗しました");
+    } finally {
+      setDeletingSurveyId(null);
     }
   };
 
@@ -309,10 +337,18 @@ export default function SurveysPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => deleteSurvey(survey.id)}
+                              onClick={() => confirmDeleteSurvey(survey)}
+                              disabled={deletingSurveyId === survey.id}
                               className="text-red-500 hover:text-red-600 flex items-center justify-center"
                             >
-                              <Trash2 size={14} className="mr-1" />
+                              {deletingSurveyId === survey.id ? (
+                                <Loader2
+                                  size={14}
+                                  className="mr-1 animate-spin"
+                                />
+                              ) : (
+                                <Trash2 size={14} className="mr-1" />
+                              )}
                               削除
                             </Button>
                           </div>
@@ -341,6 +377,42 @@ export default function SurveysPage() {
               )}
           </div>
         </div>
+
+        {/* アンケート削除確認ダイアログ */}
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>アンケートを削除しますか？</AlertDialogTitle>
+              <AlertDialogDescription>
+                「{surveyToDelete?.title}」を削除します。
+                <br />
+                この操作は取り消すことができません。
+                <br />
+                関連する回答データも全て削除されます。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>キャンセル</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={deleteSurvey}
+                className="bg-red-600 hover:bg-red-700"
+                disabled={!!deletingSurveyId}
+              >
+                {deletingSurveyId === surveyToDelete?.id ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    削除中...
+                  </>
+                ) : (
+                  "削除"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
