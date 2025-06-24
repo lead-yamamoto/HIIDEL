@@ -2,7 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Mail, Plus, Save } from "lucide-react";
+import {
+  AlertCircle,
+  Mail,
+  Plus,
+  Save,
+  Bot,
+  Clock,
+  Settings,
+  PlayCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
@@ -14,10 +23,108 @@ import { Input } from "@/components/ui/input";
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [autoReplyRunning, setAutoReplyRunning] = useState(false);
+
+  // AI設定の状態
+  const [aiSettings, setAiSettings] = useState({
+    customPromptEnabled: false,
+    positiveReviewPrompt: "",
+    neutralReviewPrompt: "",
+    negativeReviewPrompt: "",
+    noCommentReviewPrompt: "",
+    autoReplyEnabled: false,
+    autoReplyDelayMinutes: 60,
+    autoReplyBusinessHoursOnly: true,
+    businessHoursStart: "09:00",
+    businessHoursEnd: "18:00",
+    autoReplyMinRating: 1,
+    autoReplyMaxRating: 5,
+  });
+
+  // AI設定を読み込み
+  const loadAISettings = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/ai-settings");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setAiSettings(data.settings);
+        }
+      }
+    } catch (error) {
+      console.error("AI設定の読み込みに失敗しました:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // AI設定を保存
+  const saveAISettings = async () => {
+    try {
+      setSaving(true);
+      const response = await fetch("/api/ai-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(aiSettings),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          alert("AI設定が保存されました");
+        } else {
+          alert("保存に失敗しました: " + data.error);
+        }
+      } else {
+        alert("保存に失敗しました");
+      }
+    } catch (error) {
+      console.error("AI設定の保存に失敗しました:", error);
+      alert("保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 自動返信を実行
+  const runAutoReply = async () => {
+    try {
+      setAutoReplyRunning(true);
+      const response = await fetch("/api/auto-reply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ force: true }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          alert(`${data.processed}件のレビューに自動返信しました`);
+        } else {
+          alert("自動返信に失敗しました: " + data.message);
+        }
+      } else {
+        alert("自動返信に失敗しました");
+      }
+    } catch (error) {
+      console.error("自動返信の実行に失敗しました:", error);
+      alert("自動返信に失敗しました");
+    } finally {
+      setAutoReplyRunning(false);
+    }
+  };
 
   // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
+    loadAISettings();
   }, []);
 
   if (!mounted) return null;
@@ -54,8 +161,9 @@ export default function SettingsPage() {
             <Tabs defaultValue="templates" className="w-full">
               <TabsList className="mb-6 overflow-x-auto flex w-full md:w-auto">
                 <TabsTrigger value="templates">返信テンプレート</TabsTrigger>
-                <TabsTrigger value="notifications">通知設定</TabsTrigger>
+                <TabsTrigger value="ai-settings">AI返信設定</TabsTrigger>
                 <TabsTrigger value="auto-reply">自動返信</TabsTrigger>
+                <TabsTrigger value="notifications">通知設定</TabsTrigger>
               </TabsList>
 
               <TabsContent value="templates">
@@ -282,6 +390,162 @@ export default function SettingsPage() {
                 </motion.div>
               </TabsContent>
 
+              <TabsContent value="ai-settings">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-medium flex items-center">
+                        <Bot size={20} className="mr-2 text-blue-500" />
+                        AI返信プロンプトのカスタマイズ
+                      </h3>
+                      <Switch
+                        checked={aiSettings.customPromptEnabled}
+                        onCheckedChange={(checked) =>
+                          setAiSettings({
+                            ...aiSettings,
+                            customPromptEnabled: checked,
+                          })
+                        }
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      AIが返信を生成する際に使用するプロンプトをカスタマイズできます。
+                      有効にすると、以下で設定したプロンプトが使用されます。
+                    </p>
+                  </div>
+
+                  {aiSettings.customPromptEnabled && (
+                    <div className="space-y-6 mb-6">
+                      <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm">
+                        <h4 className="font-medium mb-3 text-green-600">
+                          ポジティブなレビュー用プロンプト
+                        </h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          評価が4〜5の場合に使用されます
+                        </p>
+                        <Textarea
+                          value={aiSettings.positiveReviewPrompt}
+                          onChange={(e) =>
+                            setAiSettings({
+                              ...aiSettings,
+                              positiveReviewPrompt: e.target.value,
+                            })
+                          }
+                          placeholder="例: この度は{店舗名}をご利用いただき、ありがとうございます..."
+                          className="min-h-[100px]"
+                        />
+                      </div>
+
+                      <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm">
+                        <h4 className="font-medium mb-3 text-yellow-600">
+                          中立的なレビュー用プロンプト
+                        </h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          評価が3の場合に使用されます
+                        </p>
+                        <Textarea
+                          value={aiSettings.neutralReviewPrompt}
+                          onChange={(e) =>
+                            setAiSettings({
+                              ...aiSettings,
+                              neutralReviewPrompt: e.target.value,
+                            })
+                          }
+                          placeholder="例: この度は{店舗名}をご利用いただき、ありがとうございます..."
+                          className="min-h-[100px]"
+                        />
+                      </div>
+
+                      <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm">
+                        <h4 className="font-medium mb-3 text-red-600">
+                          ネガティブなレビュー用プロンプト
+                        </h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          評価が1〜2の場合に使用されます
+                        </p>
+                        <Textarea
+                          value={aiSettings.negativeReviewPrompt}
+                          onChange={(e) =>
+                            setAiSettings({
+                              ...aiSettings,
+                              negativeReviewPrompt: e.target.value,
+                            })
+                          }
+                          placeholder="例: この度は{店舗名}をご利用いただき、ありがとうございました..."
+                          className="min-h-[100px]"
+                        />
+                      </div>
+
+                      <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm">
+                        <h4 className="font-medium mb-3 text-blue-600">
+                          コメントなしレビュー用プロンプト
+                        </h4>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          評価のみでコメントがない場合に使用されます
+                        </p>
+                        <Textarea
+                          value={aiSettings.noCommentReviewPrompt}
+                          onChange={(e) =>
+                            setAiSettings({
+                              ...aiSettings,
+                              noCommentReviewPrompt: e.target.value,
+                            })
+                          }
+                          placeholder="例: この度は{店舗名}をご利用いただき、ありがとうございます..."
+                          className="min-h-[100px]"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-muted/30 border rounded-xl p-4 text-sm mb-6">
+                    <h4 className="font-medium mb-2 flex items-center">
+                      <AlertCircle size={16} className="mr-2 text-amber-500" />
+                      使用可能な変数
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                        <li>
+                          <code>{"{店舗名}"}</code> - 店舗名
+                        </li>
+                        <li>
+                          <code>{"{お客様名}"}</code> - レビュー投稿者名
+                        </li>
+                        <li>
+                          <code>{"{評価}"}</code> - 星評価（1-5）
+                        </li>
+                      </ul>
+                      <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                        <li>
+                          <code>{"{レビュー内容}"}</code> - レビュー本文
+                        </li>
+                        <li>
+                          <code>{"{日付}"}</code> - 返信日
+                        </li>
+                        <li>
+                          <code>{"{担当者名}"}</code> - 返信担当者名
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={saveAISettings}
+                      disabled={saving}
+                      className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                    >
+                      <Save size={16} className="mr-2" />
+                      {saving ? "保存中..." : "AI設定を保存"}
+                    </Button>
+                  </div>
+                </motion.div>
+              </TabsContent>
+
               <TabsContent value="auto-reply">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -290,124 +554,204 @@ export default function SettingsPage() {
                 >
                   <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm mb-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-medium">自動返信の有効化</h3>
-                      <Switch id="enable-auto-reply" />
+                      <h3 className="font-medium flex items-center">
+                        <Settings size={20} className="mr-2 text-green-500" />
+                        自動返信機能
+                      </h3>
+                      <Switch
+                        checked={aiSettings.autoReplyEnabled}
+                        onCheckedChange={(checked) =>
+                          setAiSettings({
+                            ...aiSettings,
+                            autoReplyEnabled: checked,
+                          })
+                        }
+                      />
                     </div>
                     <p className="text-sm text-muted-foreground mb-4">
-                      自動返信を有効にすると、新しいレビューに対して設定したテンプレートを使用して自動的に返信します。
+                      新しいレビューを定期的にチェックし、設定に従って自動的にAI返信を生成・投稿します。
                     </p>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label
-                            htmlFor="auto-reply-positive"
-                            className="mb-1 block"
-                          >
-                            ポジティブなレビューへの自動返信
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            評価が4〜5のレビューに自動返信する
-                          </p>
-                        </div>
-                        <Switch id="auto-reply-positive" />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label
-                            htmlFor="auto-reply-neutral"
-                            className="mb-1 block"
-                          >
-                            中立的なレビューへの自動返信
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            評価が3のレビューに自動返信する
-                          </p>
-                        </div>
-                        <Switch id="auto-reply-neutral" />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label
-                            htmlFor="auto-reply-negative"
-                            className="mb-1 block"
-                          >
-                            ネガティブなレビューへの自動返信
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            評価が1〜2のレビューに自動返信する
-                          </p>
-                        </div>
-                        <Switch id="auto-reply-negative" />
-                      </div>
-                    </div>
                   </div>
 
-                  <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm mb-6">
-                    <h3 className="font-medium mb-4">自動返信の遅延</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      自動返信が送信されるまでの遅延時間を設定します。これにより、返信が自動化されているという印象を減らすことができます。
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label htmlFor="delay-positive" className="mb-2 block">
-                          ポジティブなレビュー
-                        </Label>
-                        <select
-                          id="delay-positive"
-                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          defaultValue="24"
-                        >
-                          <option value="0">即時</option>
-                          <option value="1">1時間後</option>
-                          <option value="3">3時間後</option>
-                          <option value="6">6時間後</option>
-                          <option value="12">12時間後</option>
-                          <option value="24">24時間後</option>
-                        </select>
+                  {aiSettings.autoReplyEnabled && (
+                    <div className="space-y-6 mb-6">
+                      <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm">
+                        <h4 className="font-medium mb-4 flex items-center">
+                          <Clock size={18} className="mr-2 text-blue-500" />
+                          タイミング設定
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label
+                              htmlFor="delay-minutes"
+                              className="mb-2 block"
+                            >
+                              返信遅延時間（分）
+                            </Label>
+                            <Input
+                              id="delay-minutes"
+                              type="number"
+                              min="0"
+                              max="1440"
+                              value={aiSettings.autoReplyDelayMinutes}
+                              onChange={(e) =>
+                                setAiSettings({
+                                  ...aiSettings,
+                                  autoReplyDelayMinutes:
+                                    parseInt(e.target.value) || 60,
+                                })
+                              }
+                              placeholder="60"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              レビュー投稿から返信までの遅延時間
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="mb-2 block">営業時間制限</Label>
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                checked={aiSettings.autoReplyBusinessHoursOnly}
+                                onCheckedChange={(checked) =>
+                                  setAiSettings({
+                                    ...aiSettings,
+                                    autoReplyBusinessHoursOnly: checked,
+                                  })
+                                }
+                              />
+                              <span className="text-sm">
+                                営業時間内のみ自動返信
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {aiSettings.autoReplyBusinessHoursOnly && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                              <Label
+                                htmlFor="business-start"
+                                className="mb-2 block"
+                              >
+                                営業開始時間
+                              </Label>
+                              <Input
+                                id="business-start"
+                                type="time"
+                                value={aiSettings.businessHoursStart}
+                                onChange={(e) =>
+                                  setAiSettings({
+                                    ...aiSettings,
+                                    businessHoursStart: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label
+                                htmlFor="business-end"
+                                className="mb-2 block"
+                              >
+                                営業終了時間
+                              </Label>
+                              <Input
+                                id="business-end"
+                                type="time"
+                                value={aiSettings.businessHoursEnd}
+                                onChange={(e) =>
+                                  setAiSettings({
+                                    ...aiSettings,
+                                    businessHoursEnd: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <Label htmlFor="delay-neutral" className="mb-2 block">
-                          中立的なレビュー
-                        </Label>
-                        <select
-                          id="delay-neutral"
-                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          defaultValue="3"
-                        >
-                          <option value="0">即時</option>
-                          <option value="1">1時間後</option>
-                          <option value="3">3時間後</option>
-                          <option value="6">6時間後</option>
-                          <option value="12">12時間後</option>
-                          <option value="24">24時間後</option>
-                        </select>
+
+                      <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm">
+                        <h4 className="font-medium mb-4">評価フィルタ</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="min-rating" className="mb-2 block">
+                              最小評価
+                            </Label>
+                            <select
+                              id="min-rating"
+                              value={aiSettings.autoReplyMinRating}
+                              onChange={(e) =>
+                                setAiSettings({
+                                  ...aiSettings,
+                                  autoReplyMinRating: parseInt(e.target.value),
+                                })
+                              }
+                              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                              <option value="1">1つ星以上</option>
+                              <option value="2">2つ星以上</option>
+                              <option value="3">3つ星以上</option>
+                              <option value="4">4つ星以上</option>
+                              <option value="5">5つ星のみ</option>
+                            </select>
+                          </div>
+                          <div>
+                            <Label htmlFor="max-rating" className="mb-2 block">
+                              最大評価
+                            </Label>
+                            <select
+                              id="max-rating"
+                              value={aiSettings.autoReplyMaxRating}
+                              onChange={(e) =>
+                                setAiSettings({
+                                  ...aiSettings,
+                                  autoReplyMaxRating: parseInt(e.target.value),
+                                })
+                              }
+                              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                              <option value="1">1つ星まで</option>
+                              <option value="2">2つ星まで</option>
+                              <option value="3">3つ星まで</option>
+                              <option value="4">4つ星まで</option>
+                              <option value="5">5つ星まで</option>
+                            </select>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          この範囲内の評価のレビューにのみ自動返信します
+                        </p>
                       </div>
-                      <div>
-                        <Label htmlFor="delay-negative" className="mb-2 block">
-                          ネガティブなレビュー
-                        </Label>
-                        <select
-                          id="delay-negative"
-                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          defaultValue="1"
+
+                      <div className="bg-card/50 backdrop-blur-md border rounded-xl p-4 md:p-5 shadow-sm">
+                        <h4 className="font-medium mb-4">手動実行</h4>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          自動返信を即座に実行して、未返信のレビューに返信します。
+                        </p>
+                        <Button
+                          onClick={runAutoReply}
+                          disabled={autoReplyRunning}
+                          variant="outline"
+                          className="w-full md:w-auto"
                         >
-                          <option value="0">即時</option>
-                          <option value="1">1時間後</option>
-                          <option value="3">3時間後</option>
-                          <option value="6">6時間後</option>
-                          <option value="12">12時間後</option>
-                          <option value="24">24時間後</option>
-                        </select>
+                          <PlayCircle size={16} className="mr-2" />
+                          {autoReplyRunning
+                            ? "実行中..."
+                            : "今すぐ自動返信を実行"}
+                        </Button>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="flex justify-end">
-                    <button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-none inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2">
-                      <Save size={16} className="mr-2" /> 設定を保存
-                    </button>
+                    <Button
+                      onClick={saveAISettings}
+                      disabled={saving}
+                      className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+                    >
+                      <Save size={16} className="mr-2" />
+                      {saving ? "保存中..." : "自動返信設定を保存"}
+                    </Button>
                   </div>
                 </motion.div>
               </TabsContent>
