@@ -58,7 +58,7 @@ interface UserSettings {
 }
 
 export default function ProfilePage() {
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const [mounted, setMounted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -87,6 +87,10 @@ export default function ProfilePage() {
     sessionTimeout: "30",
   });
 
+  // 編集前の元の設定を保存（キャンセル時に使用）
+  const [originalSettings, setOriginalSettings] =
+    useState<UserSettings>(settings);
+
   const [notificationMessages, setNotificationMessages] = useState<{
     type: "success" | "error";
     message: string;
@@ -103,6 +107,7 @@ export default function ProfilePage() {
       if (response.ok) {
         const data = await response.json();
         setSettings(data.profile);
+        setOriginalSettings(data.profile); // 元の設定も更新
       } else {
         console.error("プロフィール取得に失敗:", response.statusText);
       }
@@ -133,13 +138,30 @@ export default function ProfilePage() {
 
       if (response.ok) {
         setIsEditing(false);
-        showNotification("success", data.message || "設定が保存されました");
+        // 最新のプロフィール情報を再取得して完全に同期
+        await fetchProfile();
+        // セッション情報も更新（名前とプロフィール画像を即座に反映）
+        try {
+          await updateSession({
+            name: settings.name,
+            image: settings.profileImage,
+          });
+        } catch (sessionError) {
+          console.warn("セッション更新中にエラーが発生しました:", sessionError);
+        }
+        showNotification(
+          "success",
+          data.message || "プロフィールが保存されました"
+        );
       } else {
-        showNotification("error", data.error || "設定の保存に失敗しました");
+        showNotification(
+          "error",
+          data.error || "プロフィールの保存に失敗しました"
+        );
       }
     } catch (error) {
-      console.error("設定の保存に失敗:", error);
-      showNotification("error", "設定の保存に失敗しました");
+      console.error("プロフィールの保存に失敗:", error);
+      showNotification("error", "プロフィールの保存に失敗しました");
     } finally {
       setIsSaving(false);
     }
@@ -208,11 +230,44 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (response.ok) {
-        setSettings((prev) => ({ ...prev, profileImage: data.imageUrl }));
-        showNotification(
-          "success",
-          data.message || "プロフィール画像がアップロードされました"
-        );
+        // プロフィール設定を更新
+        const updatedSettings = { ...settings, profileImage: data.imageUrl };
+        setSettings(updatedSettings);
+
+        // 画像アップロード成功後、プロフィール情報を自動保存
+        const saveResponse = await fetch("/api/profile", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updatedSettings),
+        });
+
+        if (saveResponse.ok) {
+          // 最新のプロフィール情報を再取得して同期
+          await fetchProfile();
+          // セッション情報も更新（プロフィール画像を即座に反映）
+          try {
+            await updateSession({
+              name: settings.name,
+              image: data.imageUrl,
+            });
+          } catch (sessionError) {
+            console.warn(
+              "セッション更新中にエラーが発生しました:",
+              sessionError
+            );
+          }
+          showNotification(
+            "success",
+            "プロフィール画像がアップロードされ、保存されました"
+          );
+        } else {
+          showNotification(
+            "error",
+            "画像はアップロードされましたが、プロフィールの保存に失敗しました"
+          );
+        }
       } else {
         showNotification(
           "error",
@@ -458,7 +513,12 @@ export default function ProfilePage() {
 
                       <div className="flex gap-2">
                         {!isEditing ? (
-                          <Button onClick={() => setIsEditing(true)}>
+                          <Button
+                            onClick={() => {
+                              setOriginalSettings(settings); // 編集開始時に現在の設定を保存
+                              setIsEditing(true);
+                            }}
+                          >
                             編集
                           </Button>
                         ) : (
@@ -482,7 +542,10 @@ export default function ProfilePage() {
                             </button>
                             <Button
                               variant="outline"
-                              onClick={() => setIsEditing(false)}
+                              onClick={() => {
+                                setSettings(originalSettings); // 元の設定に戻す
+                                setIsEditing(false);
+                              }}
                             >
                               キャンセル
                             </Button>
@@ -580,7 +643,7 @@ export default function ProfilePage() {
                         ) : (
                           <>
                             <Save className="mr-2 h-4 w-4" />
-                            保存
+                            通知設定を保存
                           </>
                         )}
                       </button>
@@ -734,7 +797,7 @@ export default function ProfilePage() {
                         ) : (
                           <>
                             <Save className="mr-2 h-4 w-4" />
-                            保存
+                            セキュリティ設定を保存
                           </>
                         )}
                       </button>
@@ -830,7 +893,7 @@ export default function ProfilePage() {
                         ) : (
                           <>
                             <Save className="mr-2 h-4 w-4" />
-                            保存
+                            環境設定を保存
                           </>
                         )}
                       </button>
