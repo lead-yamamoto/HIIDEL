@@ -3,240 +3,95 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const requestBody = await request.json();
-    console.log("AI返信生成APIリクエスト:", requestBody);
+    console.log("🤖 [AI Review Reply] Request received:", requestBody);
 
-    const { reviewText, rating, businessName, businessType } = requestBody;
+    const { reviewText, rating, businessName, businessType, storeName } =
+      requestBody;
 
-    console.log("パラメータチェック:", {
-      reviewText: reviewText,
-      rating: rating,
-      businessName: businessName,
-      businessType: businessType,
-      hasReviewText: !!reviewText,
-      hasRating: !!rating,
-      hasBusinessName: !!businessName,
-      reviewTextType: typeof reviewText,
-      reviewTextLength: reviewText?.length || 0,
-      reviewTextTrimmed: reviewText?.trim?.() || "",
-      reviewTextTrimmedLength: reviewText?.trim?.()?.length || 0,
+    // パラメータの正規化（storeNameもbusinessNameとして受け入れる）
+    const finalBusinessName = businessName || storeName;
+
+    console.log("🔍 [AI Review Reply] Parameter check:", {
+      reviewText: !!reviewText,
+      rating: !!rating,
+      businessName: !!finalBusinessName,
+      businessType: !!businessType,
     });
 
-    // より詳細なパラメータ検証
-    const isValidReviewText =
-      reviewText &&
-      typeof reviewText === "string" &&
-      reviewText.trim().length > 0;
-
-    const isValidRating =
-      rating && typeof rating === "number" && rating >= 1 && rating <= 5;
-
-    const isValidBusinessName =
-      businessName &&
-      typeof businessName === "string" &&
-      businessName.trim().length > 0;
-
-    console.log("詳細検証結果:", {
-      isValidReviewText,
-      isValidRating,
-      isValidBusinessName,
-    });
-
-    if (!isValidReviewText || !isValidRating || !isValidBusinessName) {
-      console.error("パラメータ検証エラー:", {
-        reviewText: {
-          value: reviewText,
-          type: typeof reviewText,
-          valid: isValidReviewText,
-        },
-        rating: {
-          value: rating,
-          type: typeof rating,
-          valid: isValidRating,
-        },
-        businessName: {
-          value: businessName,
-          type: typeof businessName,
-          valid: isValidBusinessName,
-        },
+    if (!reviewText || !rating || !finalBusinessName) {
+      console.error("❌ [AI Review Reply] Missing required parameters:", {
+        reviewText: !!reviewText,
+        rating: !!rating,
+        businessName: !!finalBusinessName,
       });
       return NextResponse.json(
         {
-          error:
-            "必要なパラメータが不足またはしており、正しく設定されていません",
+          error: "必要なパラメータが不足しています",
           details: {
-            reviewText: isValidReviewText,
-            rating: isValidRating,
-            businessName: isValidBusinessName,
-          },
-          validation: {
-            reviewText: {
-              received: reviewText,
-              type: typeof reviewText,
-              length: reviewText?.length || 0,
-              trimmedLength: reviewText?.trim?.()?.length || 0,
-            },
-            rating: {
-              received: rating,
-              type: typeof rating,
-            },
-            businessName: {
-              received: businessName,
-              type: typeof businessName,
-              length: businessName?.length || 0,
-            },
+            reviewText: !!reviewText,
+            rating: !!rating,
+            businessName: !!finalBusinessName,
           },
         },
         { status: 400 }
       );
     }
 
-    // 環境変数の詳細チェック
     const openaiApiKey = process.env.OPENAI_API_KEY;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
-    // よくある環境変数名のバリエーションもチェック
-    const possibleOpenAIKeys = [
-      process.env.OPENAI_API_KEY,
-      process.env.OPENAI_KEY,
-      process.env.OPEN_AI_API_KEY,
-      process.env.OPENAI_SECRET_KEY,
-    ].filter(Boolean);
-
-    const possibleGeminiKeys = [
-      process.env.GEMINI_API_KEY,
-      process.env.GOOGLE_AI_API_KEY,
-      process.env.GOOGLE_GEMINI_API_KEY,
-      process.env.GEMINI_KEY,
-    ].filter(Boolean);
-
-    console.log("🔍 環境変数デバッグ:", {
-      OPENAI_API_KEY: {
-        exists: !!openaiApiKey,
-        length: openaiApiKey?.length || 0,
-        startsWithSk: openaiApiKey?.startsWith("sk-") || false,
-        firstChars: openaiApiKey
-          ? openaiApiKey.substring(0, 8) + "..."
-          : "なし",
-      },
-      GEMINI_API_KEY: {
-        exists: !!geminiApiKey,
-        length: geminiApiKey?.length || 0,
-        firstChars: geminiApiKey
-          ? geminiApiKey.substring(0, 8) + "..."
-          : "なし",
-      },
-      possibleOpenAIKeys: possibleOpenAIKeys.length,
-      possibleGeminiKeys: possibleGeminiKeys.length,
-      NODE_ENV: process.env.NODE_ENV,
-      VERCEL: process.env.VERCEL,
-      VERCEL_ENV: process.env.VERCEL_ENV,
-      allEnvKeys: Object.keys(process.env)
-        .filter(
-          (key) =>
-            key.includes("OPENAI") ||
-            key.includes("GEMINI") ||
-            key.includes("API") ||
-            key.includes("KEY")
-        )
-        .slice(0, 10), // 最初の10個だけ表示
+    console.log("🔑 [AI Review Reply] API keys check:", {
+      openai: !!openaiApiKey,
+      gemini: !!geminiApiKey,
     });
 
-    // OpenAI APIを試す
-    if (openaiApiKey && openaiApiKey.length > 10) {
+    // OpenAI GPT-4oを優先的に使用
+    if (openaiApiKey) {
       try {
-        console.log("🤖 OpenAI APIで返信を生成中...");
+        console.log("🚀 [AI Review Reply] Using OpenAI GPT-4o");
         const result = await generateOpenAIReply(
           reviewText,
           rating,
-          businessName,
+          finalBusinessName,
           businessType,
           openaiApiKey
         );
-        console.log("✅ OpenAI API成功");
+        console.log(
+          "✅ [AI Review Reply] OpenAI response generated successfully"
+        );
         return NextResponse.json(result);
       } catch (error) {
-        console.error("❌ OpenAI API失敗:", error);
-        console.error("OpenAI APIエラー詳細:", {
-          message: error instanceof Error ? error.message : String(error),
-          name: error instanceof Error ? error.name : "Unknown",
-          stack: error instanceof Error ? error.stack : "No stack",
-          cause: error instanceof Error ? error.cause : undefined,
-          // OpenAI特有のエラー情報
-          status: (error as any)?.status,
-          statusText: (error as any)?.statusText,
-          code: (error as any)?.code,
-          type: (error as any)?.type,
-          param: (error as any)?.param,
-        });
+        console.error("❌ [AI Review Reply] OpenAI failed:", error);
         // Geminiにフォールバック
       }
-    } else {
-      console.log("⚠️ OpenAI APIキーが無効:", {
-        exists: !!openaiApiKey,
-        length: openaiApiKey?.length || 0,
-      });
     }
 
-    // Google Gemini APIを試す
-    if (geminiApiKey && geminiApiKey.length > 10) {
+    // Google Gemini APIにフォールバック
+    if (geminiApiKey) {
       try {
-        console.log("🤖 Gemini APIで返信を生成中...");
+        console.log("🔄 [AI Review Reply] Falling back to Gemini");
         const result = await generateGeminiReply(
           reviewText,
           rating,
-          businessName,
+          finalBusinessName,
           businessType,
           geminiApiKey
         );
-        console.log("✅ Gemini API成功");
+        console.log(
+          "✅ [AI Review Reply] Gemini response generated successfully"
+        );
         return NextResponse.json(result);
       } catch (error) {
-        console.error("❌ Gemini API失敗:", error);
-        console.error("Gemini APIエラー詳細:", {
-          message: error instanceof Error ? error.message : String(error),
-          name: error instanceof Error ? error.name : "Unknown",
-          stack: error instanceof Error ? error.stack : "No stack",
-          cause: error instanceof Error ? error.cause : undefined,
-          // Google API特有のエラー情報
-          status: (error as any)?.status,
-          statusText: (error as any)?.statusText,
-          code: (error as any)?.code,
-          details: (error as any)?.details,
-          error_code: (error as any)?.error_code,
-        });
-        // テスト返信にフォールバック
+        console.error("❌ [AI Review Reply] Gemini failed:", error);
       }
-    } else {
-      console.log("⚠️ Gemini APIキーが無効:", {
-        exists: !!geminiApiKey,
-        length: geminiApiKey?.length || 0,
-      });
     }
 
     // APIキーが設定されていない場合はテスト返信
-    console.log("⚠️ 有効なAPIキーが見つからないため、テスト返信を生成します");
-    const result = generateTestReply(reviewText, rating, businessName);
-    return NextResponse.json({
-      ...result,
-      warning:
-        "有効なAI APIが利用できないため、テスト返信を使用しています。考えられる原因：\n" +
-        "1. APIキーが設定されていない\n" +
-        "2. APIの使用制限に達している\n" +
-        "3. 課金設定が必要（OpenAI API、Google Gemini API）\n" +
-        "4. APIキーに十分な権限がない\n\n" +
-        "OpenAI Platform (https://platform.openai.com/usage) や Google AI Studio で使用状況を確認してください。",
-      debug: {
-        openaiExists: !!openaiApiKey,
-        openaiLength: openaiApiKey?.length || 0,
-        openaiValid: openaiApiKey && openaiApiKey.length > 10,
-        geminiExists: !!geminiApiKey,
-        geminiLength: geminiApiKey?.length || 0,
-        geminiValid: geminiApiKey && geminiApiKey.length > 10,
-        recommendation: "APIの課金設定または使用制限を確認してください",
-      },
-    });
+    console.log("⚠️ [AI Review Reply] No API keys available, using test reply");
+    const result = generateTestReply(reviewText, rating, finalBusinessName);
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("AI review reply error:", error);
+    console.error("💥 [AI Review Reply] Unexpected error:", error);
     return NextResponse.json(
       {
         error: "AI返信生成でエラーが発生しました",
@@ -247,53 +102,48 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// OpenAI APIを使用した返信生成
+// OpenAI GPT-4oを使用した返信生成
 async function generateOpenAIReply(
   reviewText: string,
   rating: number,
   businessName: string,
-  businessType: string,
+  businessType: string = "ビジネス",
   apiKey: string
 ) {
   const isPositive = rating >= 4;
   const responseType = isPositive ? "感謝" : "改善への取り組み";
 
   const prompt = `
-あなたは ${businessName} の${
-    businessType || "ビジネス"
-  }の顧客サービス担当者です。
-以下のGoogleレビューに対して、${responseType}を示す丁寧で心のこもった返信を日本語で作成してください。
+あなたは ${businessName} の${businessType}の顧客サービス担当者です。
+以下のGoogleレビューに対して、プロフェッショナルで心のこもった返信を日本語で作成してください。
 
 レビュー内容: "${reviewText}"
 評価: ${rating}/5
 
-返信の条件:
-- 150文字以内
-- 敬語を使用
+返信の要件:
+- 150文字以内で簡潔に
+- 丁寧な敬語を使用
 - ${
     isPositive
-      ? "感謝の気持ちを表現"
-      : "問題を真摯に受け止め、改善への意欲を示す"
+      ? "感謝の気持ちを表現し、今後も良いサービスを提供する意欲を示す"
+      : "問題を真摯に受け止め、具体的な改善への取り組みを示す"
   }
-- 顧客の具体的なコメントに言及
+- 顧客の具体的なコメントに触れる
 - ${
     !isPositive
-      ? "今後の改善策や連絡先を提示"
-      : "今後ともよろしくお願いしますという気持ちを込める"
+      ? "可能であれば連絡先や改善策を提示"
+      : "また来ていただきたいという気持ちを込める"
   }
+- 自然で温かみのある文章にする
+
+返信のみを出力してください。引用符は不要です。
 `;
 
-  // レート制限対策：3回までリトライ
-  let lastError;
+  // 最大3回リトライ
+  let lastError: any = null;
   for (let i = 0; i < 3; i++) {
     try {
-      // リトライ時は待機
-      if (i > 0) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.pow(2, i) * 1000)
-        ); // 1秒、2秒、4秒待機
-        console.log(`OpenAI API リトライ ${i + 1}/3`);
-      }
+      console.log(`🔄 [OpenAI] Attempt ${i + 1}/3`);
 
       const response = await fetch(
         "https://api.openai.com/v1/chat/completions",
@@ -304,57 +154,76 @@ async function generateOpenAIReply(
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model: "gpt-3.5-turbo", // より制限が緩いモデルに変更
+            model: "gpt-4o", // GPT-4oを使用
             messages: [
               {
                 role: "system",
                 content:
-                  "あなたは顧客サービスの専門家で、レビューへの返信作成を支援します。",
+                  "あなたは優秀な顧客サービス担当者で、レビューへの心のこもった返信作成の専門家です。常にプロフェッショナルで温かく、顧客に寄り添う返信を作成します。",
               },
               {
                 role: "user",
                 content: prompt,
               },
             ],
-            max_tokens: 200,
+            max_tokens: 300,
             temperature: 0.7,
+            top_p: 0.9,
           }),
         }
       );
 
       if (response.ok) {
-        // 成功時はループを抜けてデータを処理
         const data = await response.json();
-        const replyText = data.choices[0]?.message?.content;
+        const replyText = data.choices[0]?.message?.content?.trim();
 
         if (!replyText) {
-          throw new Error("OpenAIからの返信生成に失敗しました");
+          throw new Error("OpenAIからの返信が空でした");
         }
+
+        console.log(
+          `✅ [OpenAI] Generated reply (${replyText.length} chars):`,
+          replyText.substring(0, 100) + "..."
+        );
 
         return {
           success: true,
-          reply: replyText.trim(),
+          reply: replyText,
           metadata: {
             rating: rating,
             isPositive: isPositive,
             responseType: responseType,
             provider: "OpenAI",
-            model: "gpt-3.5-turbo",
-            retries: i,
+            model: "gpt-4o",
+            attempt: i + 1,
+            tokensUsed: data.usage?.total_tokens || 0,
           },
         };
       } else if (response.status === 429) {
-        // レート制限の場合は再試行
+        // レート制限の場合は少し待ってリトライ
+        console.log(
+          `⏳ [OpenAI] Rate limited, waiting before retry ${i + 1}/3`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 2000 * (i + 1))); // 指数バックオフ
         lastError = new Error(`OpenAI API レート制限: ${response.statusText}`);
-        console.log(`レート制限に達した (${i + 1}/3)`);
         continue;
       } else {
-        // その他のエラーの場合は即座に終了
-        throw new Error(`OpenAI API error: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`❌ [OpenAI] API error:`, {
+          status: response.status,
+          error: errorData,
+        });
+        throw new Error(
+          `OpenAI API error: ${response.status} - ${
+            errorData.error?.message || response.statusText
+          }`
+        );
       }
     } catch (error) {
       lastError = error;
+      console.error(`❌ [OpenAI] Attempt ${i + 1} failed:`, error);
       if (i === 2) break; // 最後の試行の場合はbreak
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1))); // 待機してリトライ
     }
   }
 
@@ -367,16 +236,14 @@ async function generateGeminiReply(
   reviewText: string,
   rating: number,
   businessName: string,
-  businessType: string,
+  businessType: string = "ビジネス",
   apiKey: string
 ) {
   const isPositive = rating >= 4;
   const responseType = isPositive ? "感謝" : "改善への取り組み";
 
   const prompt = `
-あなたは ${businessName} の${
-    businessType || "ビジネス"
-  }の顧客サービス担当者です。
+あなたは ${businessName} の${businessType}の顧客サービス担当者です。
 以下のGoogleレビューに対して、${responseType}を示す丁寧で心のこもった返信を日本語で作成してください。
 
 レビュー内容: "${reviewText}"
@@ -426,19 +293,29 @@ async function generateGeminiReply(
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      `Gemini API error: ${response.status} - ${
+        errorData.error?.message || response.statusText
+      }`
+    );
   }
 
   const data = await response.json();
-  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
   if (!replyText) {
-    throw new Error("Geminiからの返信生成に失敗しました");
+    throw new Error("Geminiからの返信が空でした");
   }
+
+  console.log(
+    `✅ [Gemini] Generated reply (${replyText.length} chars):`,
+    replyText.substring(0, 100) + "..."
+  );
 
   return {
     success: true,
-    reply: replyText.trim(),
+    reply: replyText,
     metadata: {
       rating: rating,
       isPositive: isPositive,
@@ -459,6 +336,8 @@ function generateTestReply(
   const testReply = isPositive
     ? `この度は${businessName}をご利用いただき、ありがとうございます。お客様からの温かいお言葉を頂戴し、スタッフ一同大変嬉しく思っております。今後もより良いサービスを提供できるよう努めてまいります。またのご利用を心よりお待ちしております。`
     : `この度は${businessName}をご利用いただき、ありがとうございました。貴重なご意見をいただき、改善点を真摯に受け止めております。お客様により良いサービスを提供できるよう、スタッフ一同改善に努めてまいります。機会がございましたら、ぜひ再度ご利用ください。`;
+
+  console.log(`🧪 [Test] Generated test reply (${testReply.length} chars)`);
 
   return {
     success: true,

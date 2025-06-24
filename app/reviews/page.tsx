@@ -309,17 +309,14 @@ export default function ReviewsPage() {
     if (!selectedReview) return;
 
     setIsGeneratingAiReply(true);
+    console.log("🤖 [UI] Generating AI reply for review:", {
+      reviewId: selectedReview.id,
+      rating: selectedReview.rating,
+      comment: selectedReview.comment?.substring(0, 50) + "...",
+      storeName: selectedReview.storeName,
+    });
+
     try {
-      // 店舗情報を取得
-      const store = stores.find((s) => s.id === selectedReview.storeId);
-
-      console.log("🤖 AI返信生成開始:", {
-        reviewText: selectedReview.comment,
-        rating: selectedReview.rating,
-        businessName: selectedReview.storeName || store?.name || "お店",
-        businessType: "ビジネス",
-      });
-
       const response = await fetch("/api/ai/review-reply", {
         method: "POST",
         headers: {
@@ -328,55 +325,51 @@ export default function ReviewsPage() {
         body: JSON.stringify({
           reviewText: selectedReview.comment,
           rating: selectedReview.rating,
-          businessName: selectedReview.storeName || store?.name || "お店",
-          businessType: "ビジネス",
+          businessName: selectedReview.storeName,
+          businessType: "店舗", // デフォルト値を追加
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ AI返信生成成功:", data);
+        console.log("✅ [UI] AI reply generated successfully:", {
+          success: data.success,
+          replyLength: data.reply?.length,
+          provider: data.metadata?.provider,
+          model: data.metadata?.model,
+        });
         setReplyText(data.reply);
-
-        // 成功メッセージを表示（一時的なトースト風通知）
-        if (data.metadata?.provider) {
-          console.log(`🎉 ${data.metadata.provider}でAI返信を生成しました`);
-        }
-
-        if (data.warning) {
-          console.warn("⚠️ 警告:", data.warning);
-        }
       } else {
-        console.error("AI返信生成に失敗:", response.status);
         const errorData = await response.json().catch(() => ({}));
-        console.error("エラー詳細:", errorData);
-
-        // 詳細なエラーメッセージ
-        let errorMessage = "AI返信の生成に失敗しました。";
-        if (response.status === 400) {
-          errorMessage += " パラメータに問題があります。";
-        } else if (response.status === 500) {
-          errorMessage += " サーバーエラーが発生しました。";
-        }
-
-        alert(
-          errorMessage +
-            "\n\n定型文を使用するか、手動で返信を作成してください。"
-        );
+        console.error("❌ [UI] AI reply generation failed:", {
+          status: response.status,
+          error: errorData.error,
+          details: errorData.details,
+        });
 
         // エラー時はテスト返信を生成
         const testReply = `${selectedReview.reviewer.displayName}様、この度は貴重なご意見をありがとうございます。お客様のフィードバックを真摯に受け止め、より良いサービスの提供に努めてまいります。またのご利用をお待ちしております。`;
         setReplyText(testReply);
+
+        // ユーザーに通知
+        alert(
+          `AI返信の生成に失敗しました。テスト返信を使用します。\nエラー: ${
+            errorData.error || "不明なエラー"
+          }`
+        );
       }
     } catch (error) {
-      console.error("AI返信生成エラー:", error);
-      alert(
-        "AI返信の生成中にネットワークエラーが発生しました。\n\n定型文を使用するか、手動で返信を作成してください。"
-      );
-
+      console.error("💥 [UI] AI reply generation error:", error);
       // エラー時はテスト返信を生成
       const testReply = `${selectedReview.reviewer.displayName}様、この度は貴重なご意見をありがとうございます。お客様のフィードバックを真摯に受け止め、より良いサービスの提供に努めてまいります。またのご利用をお待ちしております。`;
       setReplyText(testReply);
+
+      // ユーザーに通知
+      alert(
+        `AI返信の生成中にエラーが発生しました。テスト返信を使用します。\nエラー: ${
+          error instanceof Error ? error.message : "不明なエラー"
+        }`
+      );
     } finally {
       setIsGeneratingAiReply(false);
     }
@@ -467,8 +460,8 @@ export default function ReviewsPage() {
                 {selectedStore === "all"
                   ? "全店舗のクチコミ一覧"
                   : `店舗別クチコミ一覧 (${
-                      stores.find((s) => s.id === selectedStore)?.name ||
-                      selectedStore
+                      reviews.find((r) => r.storeId === selectedStore)
+                        ?.storeName || selectedStore
                     })`}
               </motion.h1>
               {isGoogleConnected && (
@@ -582,11 +575,18 @@ export default function ReviewsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">すべての店舗</SelectItem>
-                        {stores.map((store) => (
-                          <SelectItem key={store.id} value={store.id}>
-                            {store.name}
-                          </SelectItem>
-                        ))}
+                        {Array.from(new Set(reviews.map((r) => r.storeId))).map(
+                          (storeId) => {
+                            const storeName =
+                              reviews.find((r) => r.storeId === storeId)
+                                ?.storeName || storeId;
+                            return (
+                              <SelectItem key={storeId} value={storeId}>
+                                {storeName}
+                              </SelectItem>
+                            );
+                          }
+                        )}
                       </SelectContent>
                     </Select>
 
